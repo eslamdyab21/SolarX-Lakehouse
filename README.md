@@ -162,3 +162,7 @@ docker exec -it spark-worker-4 /bin/bash -c "chmod +x /opt/spark/spark_workers.s
 
 ![](images/workers.png)
 We can see that all worker is now recognized by the master.
+
+<br/>
+
+Note that we could've just run the script as a command in docker compose file, but some reason it doesn't work.
