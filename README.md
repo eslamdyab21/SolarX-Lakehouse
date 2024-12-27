@@ -205,6 +205,36 @@ Then we do the calculations to drive the solar panel power for each reading, we 
 Here is the explain plan, only one necessary exchange (shuffling) at the begging. 
 ![](images/plan.png)
 
-And here are the files saved partitioned by hour of the day with some sizes of them, it's on the order of 20 to 40 M each.
+And here are the files saved partitioned by hour of the day with some sizes of them, it's on the order of 20M to 40M each.
 ![](images/solar_readings_files.png)
+
+<br/>
+
+## Optimization in this step
+![](images/spill_disk.png)
+As you can see there is a spill both in memory and disk, which is very expensive, the job took about 25 seconds, to solve this problem we have a number of options:
+- Increase the number of executors and their memory (we can't here I've limited resources in my laptop)
+- increase the number of partitions
+I went with option 2, I increased the number of partitions from 23 to 92, 92 being the number of every 15 minutes time interval of the day.
+```python
+_schema = "timestamp timestamp, solar_intensity float, temp float"
+
+weather_df = spark.read.format("csv").schema(_schema).option("header", True)\
+                   .load("/home/iceberg/warehouse/weather_history_splitted_resampled/2013-01-01.csv")\
+                   .withColumn("15_min_interval", F.floor((F.hour(F.col("timestamp"))*60 + F.minute(F.col("timestamp")) - 60) / 15))
+```
+
+```python
+spark.conf.set("spark.sql.shuffle.partitions", 92)
+weather_partitioned_df = weather_df.repartition(92, F.col('15_min_interval'))
+```
+
+```python
+solar_panel_readings_df.write.format("csv").option("header", True).mode("overwrite").partitionBy("15_min_interval") \
+                       .save("/home/iceberg/warehouse/weather_history_splitted_resampled/solar_panel_readings/2013-01-01.csv")
+```
+
+![](images/no_spill.png)
+And now there is no spill in memory and disk, as a result the job went from taking 25 seconds to just 14 seconds, and the size per partition is also decreased down to from 5M to 10M.
+![](images/14sec.png)
 
