@@ -1,4 +1,9 @@
 # SolarX-Lakehouse
+Destining a Lakehouse for extensive data frequency of SoalrX with Spark and Iceberg as big data tools.
+
+**In progress**
+
+<br/>
 
 # Some background on the data
 
