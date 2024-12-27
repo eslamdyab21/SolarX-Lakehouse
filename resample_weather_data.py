@@ -4,7 +4,7 @@ import os
 
 
 def save_file(df, date):
-	base_dir = 'weather_history_splitted_resampled/'
+	base_dir = 'lakehouse/weather_history_splitted_resampled/'
 	
 	if not os.path.exists(base_dir):
 		os.makedirs(base_dir)
