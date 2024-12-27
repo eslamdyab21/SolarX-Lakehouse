@@ -166,3 +166,45 @@ We can see that all worker is now recognized by the master.
 <br/>
 
 Note that we could've just run the script as a command in docker compose file, but some reason it doesn't work.
+
+<br/>
+<br/>
+
+# Driving solar panel readings data with spark
+Here we start working on the 730 MB and 16,536001 records of data of first day, we start by setting up the cluster, the choice was 3 workers with 6 executors each with 1 core and 512M for memory.
+
+```python
+spark = (
+    SparkSession
+    .builder
+    .appName("Solar Power")
+    .master("spark://9611ff031a11:7077")
+    .config("spark.executor.cores", 1)
+    .config("spark.cores.max", 6)
+    .config("spark.executor.memory", "512M")
+    .getOrCreate()
+)
+```
+
+<br/>
+
+Then we load the csv file and partition with a derived column `hour`, this partitioning will ensure data spreading without skewing and will help down the line in processing, also it will prevent memory spill.
+
+```python
+_schema = "timestamp timestamp, solar_intensity float, temp float"
+
+weather_df = spark.read.format("csv").schema(_schema).option("header", True)\
+                   .load("/home/iceberg/warehouse/weather_history_splitted_resampled/2013-01-01.csv")\
+                   .withColumn("hour", F.hour(F.col("timestamp")))
+```
+
+Then we do the calculations to drive the solar panel power for each reading, we assume an approximate linear model in the calculations, a good enough approximation hence it's not really the point here, then we save the data as csv, we will use parquet format down the line.
+
+<br/>
+
+Here is the explain plan, only one necessary exchange (shuffling) at the begging. 
+![](images/plan.png)
+
+And here are the files saved partitioned by hour of the day with some sizes of them, it's on the order of 20 to 40 M each.
+![](images/solar_readings_files.png)
+
