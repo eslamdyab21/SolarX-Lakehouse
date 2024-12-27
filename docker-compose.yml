@@ -18,7 +18,7 @@ services:
       - 4040:4040
       - 4041:4041
     volumes:
-      - ./lakehouse:/home/iceberg/lakehouse
+      - ./lakehouse:/home/iceberg/warehouse
       - ./notebooks:/home/iceberg/notebooks/notebooks
 
     networks:
@@ -36,7 +36,9 @@ services:
 
     volumes:
       - ./spark_workers.sh:/opt/spark/spark_workers.sh
-
+      - ./lakehouse:/home/iceberg/warehouse
+      - ./notebooks:/home/iceberg/notebooks/notebooks
+    
     networks:
       - iceberg_net
       
@@ -65,6 +67,8 @@ services:
 
     volumes:
       - ./spark_workers.sh:/opt/spark/spark_workers.sh
+      - ./lakehouse:/home/iceberg/warehouse
+      - ./notebooks:/home/iceberg/notebooks/notebooks
 
     networks:
       - iceberg_net
@@ -88,6 +92,8 @@ services:
 
     volumes:
       - ./spark_workers.sh:/opt/spark/spark_workers.sh
+      - ./lakehouse:/home/iceberg/warehouse
+      - ./notebooks:/home/iceberg/notebooks/notebooks
 
     networks:
       - iceberg_net
@@ -105,28 +111,28 @@ services:
       - spark-master
 
 
-  spark-worker-4:
-    image: tabulario/spark-iceberg
-    container_name: spark-worker-4
-    build: spark/
+  # spark-worker-4:
+  #   image: tabulario/spark-iceberg
+  #   container_name: spark-worker-4
+  #   build: spark/
 
-    volumes:
-      - ./spark_workers.sh:/opt/spark/spark_workers.sh
+  #   volumes:
+  #     - ./spark_workers.sh:/opt/spark/spark_workers.sh
 
-    networks:
-      - iceberg_net
+  #   networks:
+  #     - iceberg_net
       
-    environment:
-      - AWS_ACCESS_KEY_ID=admin
-      - AWS_SECRET_ACCESS_KEY=password
-      - AWS_REGION=us-east-1
-      - SPARK_MODE=worker
-      - SPARK_MASTER_URL=spark://spark-master:7077 
-      - SPARK_WORKER_CORES=2
-      - SPARK_WORKER_MEMORY=1G
+  #   environment:
+  #     - AWS_ACCESS_KEY_ID=admin
+  #     - AWS_SECRET_ACCESS_KEY=password
+  #     - AWS_REGION=us-east-1
+  #     - SPARK_MODE=worker
+  #     - SPARK_MASTER_URL=spark://spark-master:7077 
+  #     - SPARK_WORKER_CORES=2
+  #     - SPARK_WORKER_MEMORY=1G
 
-    depends_on:
-      - spark-master
+  #   depends_on:
+  #     - spark-master
 
 
 
