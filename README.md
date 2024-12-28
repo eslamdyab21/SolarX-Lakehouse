@@ -177,7 +177,7 @@ Note that we could've just run the script as a command in docker compose file, b
 <br/>
 <br/>
 
-# Driving solar panel readings data with spark
+# derive solar panel readings data with spark
 Here we start working on the 730 MB and 16,536001 records of data of first day, we start by setting up the cluster, the choice was 3 workers with 6 executors each with 1 core and 512M for memory.
 
 ```python
