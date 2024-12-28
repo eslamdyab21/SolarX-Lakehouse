@@ -255,4 +255,68 @@ Now to have a structured lakehouse with tables format and to have some managemen
 So going forward will use `iceberg` for that, iceberg also have a nice api that we can use to query the data saved on disk in csv or parquet format as if it was a table with normal sql, so it will feel homey for the analytical team.
 
 
+<br/>
+<br/>
 
+# Lakehouse Raw Records 
+### solar_panel and solar_panel_readings tables
+
+We start with those two tables `solar_panel` and `solar_panel_readings`,
+```sql 
+%%sql
+
+CREATE TABLE SolarX_Raw_Transactions.solar_panel(
+    id INT,
+    name VARCHAR(25) NOT NULL,
+    capacity_kwh FLOAT NOT NULL,
+    intensity_power_rating FLOAT NOT NULL,
+    temperature_power_rating FLOAT NOT NULL
+)
+USING iceberg
+```
+
+```sql
+%%sql
+
+CREATE TABLE SolarX_Raw_Transactions.solar_panel_readings(
+    timestamp TIMESTAMP NOT NULL,
+    15_minutes_interval INT NOT NULL,
+    panel_id INT NOT NULL,
+    generated_power_amount FLOAT NOT NULL
+)
+USING iceberg
+PARTITIONED BY (MONTH(timestamp), 15_minutes_interval);
+```
+
+We are partitioning the raw readings on both the `month` and the `15_minutes_interval`, and the power is calculated same as before, the only difference is that now we have 3 solar panels and instead of saving the data into `csvs`, we are saving them with `iceberg`, and iceberg under the hod saves them in `parquet` format. 
+
+<br/>
+
+We can see here on `127.0.0.1:9000` using the `minio` service in the docker compose, log in with username and password specified in the docker compose file, after creating the two tables in the jupyter notebook.
+![](images/raw_trx.png)
+Inside each directory exists two dirs, `data` and `metadata`, the data files will be organized using the partitioning we provided, fore example here after inserting the first solar panel data
+```python
+panel_id = 1
+solar_panel_readings_df1 = calc_solar_readings(panel_id, weather_partitioned_df)
+solar_panel_readings_df1.createOrReplaceTempView("temp_view_1")
+```
+
+```sql
+%%sql
+    
+INSERT INTO SolarX_Raw_Transactions.solar_panel_readings (timestamp, 15_minutes_interval, panel_id, generated_power_amount)
+SELECT timestamp                  as timestamp,
+       15_min_interval            as 15_minutes_interval,
+       1                          as panel_id,
+       current_generation_watt    as generated_power_amount
+       
+FROM temp_view_1
+```
+
+![](images/panel1.png)
+
+And after inserting the other two solar panels data, another two files get created.
+![](images/panel23.png)
+
+Same structure will apply if we were using a cloud storage based service like amazon S3 for example, also these data can also be inspected form the container `minio`
+![](images/minio.png)
