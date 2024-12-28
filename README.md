@@ -1,5 +1,5 @@
 # SolarX-Lakehouse
-Destining a Lakehouse for extensive data frequency of SoalrX with Spark and Iceberg as big data tools.
+Designing a Lakehouse for extensive data frequency of SoalrX with Spark and Iceberg as big data tools.
 
 **In progress**
 
@@ -22,7 +22,7 @@ A sample of the `2013-01-01.csv` data
 
 The average size of this data is 23 KB with about 1400 rows, but to truly leverage spark capabilities I resampled this data down to go from frequency by hour to 5 ms, which increased the same day csv file size to around 730 MB with around 16,536001 rows.
 
-The resampling happens with the `resample_weather_data.py` script which takes the above csv file an argument, resample it and write it down to `weather_history_splitted_resampled` folder.
+The resampling happens with the `resample_weather_data.py` script which takes the above csv file an argument, resample it and write it down to `lakehouse/weather_history_splitted_resampled` directory.
 
 ```bash
 python3 resample_weather_data.py weather_history_splitted/2013-01-01.csv
@@ -43,9 +43,8 @@ In the docker compose file, there are 4 workers and one master, `spark-worker-1`
 
 <br/>
 
-The setup is 4 workers each with 1G of memory and 2 cores.
+The setup is 4 workers each with 1G of memory and 2 cores, and example of the worker service is below.
 ```docker
-
 spark-worker-1:
 	image: tabulario/spark-iceberg
 	container_name: spark-worker-1
@@ -73,6 +72,8 @@ spark-worker-1:
 <br/>
 
 ### To start the cluster:
+**An important note**: **make sure your machine have these extra resources for the workers, if not then remove some of the workers or allocate fewer cpu and memory for them**
+
 First we run the docker compose file which will start the spark master, workers and iceberg 
 ```bash
 docker compose up
@@ -165,6 +166,7 @@ docker exec -it spark-worker-3 /bin/bash -c "chmod +x /opt/spark/spark_workers.s
 docker exec -it spark-worker-4 /bin/bash -c "chmod +x /opt/spark/spark_workers.sh && /opt/spark/spark_workers.sh"
 ```
 
+Navigate to the url `127.0.0.1:8080` in which the spark master is running, make a note of the spark master internal url `spark://9611ff031a11:7077`, we will need it in the session creation step below.
 ![](images/workers.png)
 We can see that all worker is now recognized by the master.
 
@@ -193,6 +195,8 @@ spark = (
 
 <br/>
 
+After creating the spark session, here with app name `Solar Power`, you can navigate to this session related app jobs and stages details on `127.0.0.1:4041` to better understand how the job is working and optimize it.
+
 Then we load the csv file and partition with a derived column `hour`, this partitioning will ensure data spreading without skewing and will help down the line in processing, also it will prevent memory spill.
 
 ```python
@@ -218,8 +222,10 @@ And here are the files saved partitioned by hour of the day with some sizes of t
 ## Optimization in this step
 ![](images/spill_disk.png)
 As you can see there is a spill both in memory and disk, which is very expensive, the job took about 25 seconds, to solve this problem we have a number of options:
+
 - Increase the number of executors and their memory (we can't here I've limited resources in my laptop)
 - increase the number of partitions
+
 I went with option 2, I increased the number of partitions from 23 to 92, 92 being the number of every 15 minutes time interval of the day.
 ```python
 _schema = "timestamp timestamp, solar_intensity float, temp float"
@@ -242,4 +248,11 @@ solar_panel_readings_df.write.format("csv").option("header", True).mode("overwri
 ![](images/no_spill.png)
 And now there is no spill in memory and disk, as a result the job went from taking 25 seconds to just 14 seconds, and the size per partition is also decreased down to from 5M to 10M.
 ![](images/14sec.png)
+
+
+Now to have a structured lakehouse with tables format and to have some management and governance on the data, we will need a tool to help orchestrate and facilitate that, if continue saving the data like we did above it will quickly become a mess without versioning and also it will be a hustle to update data (overwriting). 
+
+So going forward will use `iceberg` for that, iceberg also have a nice api that we can use to query the data saved on disk in csv or parquet format as if it was a table with normal sql, so it will feel homey for the analytical team.
+
+
 
