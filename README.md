@@ -259,7 +259,7 @@ So going forward will use `iceberg` for that, iceberg also have a nice api that 
 <br/>
 
 # Lakehouse Raw Records 
-### `solar_panel` and `solar_panel_readings` tables
+##  `solar_panel` and `solar_panel_readings` tables
 
 We start with those two tables `solar_panel` and `solar_panel_readings`,
 ```sql 
