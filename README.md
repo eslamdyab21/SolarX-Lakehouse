@@ -5,7 +5,7 @@ Designing a Lakehouse for extensive data frequency of SoalrX with Spark and Iceb
 
 <br/>
 
-# Some background on the data
+# Some Background on the Data
 
 We start by splitting the `EGY_QH_Helwan` data collected back in 2013, the data is sampled each one hour and is nicely formatted in a csv file after running the `split_weather_data.py` script which makes a csv file for each day in the `weather_history_splitted` directory
 
@@ -38,7 +38,7 @@ A sample of the resampled `2013-01-01.csv` data
 <br/>
 <br/>
 
-# Cluster configuration setup
+# Cluster Configuration Setup
 In the docker compose file, there are 4 workers and one master, `spark-worker-1` to `spark-worker-4`. We can specify the default memory and cores in the environment variables below.
 
 <br/>
@@ -177,7 +177,7 @@ Note that we could've just run the script as a command in docker compose file, b
 <br/>
 <br/>
 
-# derive solar panel readings data with spark
+# Derive Solar Panel Readings Fata with Spark
 Here we start working on the 730 MB and 16,536001 records of data of first day, we start by setting up the cluster, the choice was 3 workers with 6 executors each with 1 core and 512M for memory.
 
 ```python
@@ -259,7 +259,7 @@ So going forward will use `iceberg` for that, iceberg also have a nice api that 
 <br/>
 
 # Lakehouse Raw Records 
-### solar_panel and solar_panel_readings tables
+### `solar_panel` and `solar_panel_readings` tables
 
 We start with those two tables `solar_panel` and `solar_panel_readings`,
 ```sql 
@@ -292,7 +292,8 @@ We are partitioning the raw readings on both the `month` and the `15_minutes_int
 
 <br/>
 
-We can see here on `127.0.0.1:9000` using the `minio` service in the docker compose, log in with username and password specified in the docker compose file, after creating the two tables in the jupyter notebook.
+We can see here on `127.0.0.1:9000` using the `minio` service in the docker compose, log in with username and password specified in the docker compose file, after creating the two tables in the jupyter notebook, All raw data will live inside `Raw Transactions` and later we will make a new dir/table for the warehouse low frequency aggregated data for analytics.
+
 ![](images/raw_trx.png)
 Inside each directory exists two dirs, `data` and `metadata`, the data files will be organized using the partitioning we provided, fore example here after inserting the first solar panel data
 ```python
