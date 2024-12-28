@@ -261,7 +261,7 @@ So going forward will use `iceberg` for that, iceberg also have a nice api that 
 # Lakehouse Raw Records 
 ##  `solar_panel` and `solar_panel_readings` tables
 
-You can find the code in the `notebooks/solar_panel_iceberg_tables.ipynb` which will soon be a `.py` file with the others to run the pipeline with `Airflow`.
+You can find the code in the `notebooks/solar_panel_iceberg_tables.ipynb` which will be a `.py` file later with the others to run the pipeline with `Airflow`.
 
 We start with those two tables solar_panel and solar_panel_readings
 ```sql 
