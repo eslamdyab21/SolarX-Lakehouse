@@ -207,7 +207,7 @@ weather_df = spark.read.format("csv").schema(_schema).option("header", True)\
                    .withColumn("hour", F.hour(F.col("timestamp")))
 ```
 
-Then we do the calculations to drive the solar panel power for each reading, we assume an approximate linear model in the calculations, a good enough approximation hence it's not really the point here, then we save the data as csv, we will use parquet format down the line.
+Then we do the calculations to drive the solar panel power for each reading, we assume an approximate linear model in the calculations, a good enough approximation since it's not really the point here, then we save the data as csv, we will use parquet format down the line.
 
 <br/>
 
@@ -246,7 +246,7 @@ solar_panel_readings_df.write.format("csv").option("header", True).mode("overwri
 ```
 
 ![](images/no_spill.png)
-And now there is no spill in memory and disk, as a result the job went from taking `25` seconds to just `14` seconds, and the size per partition is also decreased down to from `5MB` to `10MB`.
+And now there is no spill in memory and disk, as a result the job went from taking `25` seconds to just `14` seconds, and the size per partition is also decreased down to the range from `5MB` to `10MB`.
 ![](images/14sec.png)
 
 
@@ -326,4 +326,4 @@ Same structure will apply if we were using a cloud storage based service like am
 
 <br/>
 
-Also and interesting observation, the csv files of one solar panel data of one day was around `600MB` in size, now the 3 solar panels data combined is only around `171.6MB` in size, this nice reduction in size comes from the fact that iceberg saves the data in `parquet` format and this format uses `run length encoding` which can reduce the size of the data if the low carnality data are grouped together, and that is the case in our data, the average sun hours is something like `11` hours, and the rest is just `zero`, so the solar power generated is zero in the rest, and we're partitioning in way that also groups those zeros to have this size reduction as a side effect.
+Also and interesting observation, the csv files of one solar panel data of one day was around `600MB` in size, now the 3 solar panels data combined is only around `171.6MB` in size, this nice reduction in size comes from the fact that iceberg saves the data in `parquet` format and this format uses `run length encoding` which can reduce the size of the data if the low cardinality data are grouped together, and that is the case in our data, the average sun hours is something like `11` hours a day, and the rest is just `zero`, so the solar power generated is zero in the rest, and we're partitioning in way that also groups those zeros together to achieve this reduction in size.
