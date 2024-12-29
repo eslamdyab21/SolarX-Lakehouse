@@ -214,14 +214,14 @@ Then we do the calculations to drive the solar panel power for each reading, we 
 Here is the explain plan, only one necessary exchange (shuffling) at the begging. 
 ![](images/plan.png)
 
-And here are the files saved partitioned by hour of the day with some sizes of them, it's on the order of 20M to 40M each.
+And here are the files saved partitioned by hour of the day with some sizes of them, it's on the order of `20M` to `40M` each.
 ![](images/solar_readings_files.png)
 
 <br/>
 
 ## Optimization in this step
 ![](images/spill_disk.png)
-As you can see there is a spill both in memory and disk, which is very expensive, the job took about 25 seconds, to solve this problem we have a number of options:
+As you can see there is a spill both in memory and disk, which is very expensive, the job took about `25` seconds, to solve this problem we have a number of options:
 
 - Increase the number of executors and their memory (we can't here I've limited resources in my laptop)
 - increase the number of partitions
@@ -246,7 +246,7 @@ solar_panel_readings_df.write.format("csv").option("header", True).mode("overwri
 ```
 
 ![](images/no_spill.png)
-And now there is no spill in memory and disk, as a result the job went from taking 25 seconds to just 14 seconds, and the size per partition is also decreased down to from 5M to 10M.
+And now there is no spill in memory and disk, as a result the job went from taking `25` seconds to just `14` seconds, and the size per partition is also decreased down to from `5MB` to `10MB`.
 ![](images/14sec.png)
 
 
@@ -259,7 +259,7 @@ So going forward will use `iceberg` for that, iceberg also have a nice api that 
 <br/>
 
 # Lakehouse Raw Records 
-##  `solar_panel` and `solar_panel_readings` tables
+##  Solar tables
 
 You can find the code in the `notebooks/solar_panel_iceberg_tables.ipynb` which will be a `.py` file later with the others to run the pipeline with `Airflow`.
 
@@ -323,3 +323,7 @@ And after inserting the other two solar panels data, another two files get creat
 
 Same structure will apply if we were using a cloud storage based service like amazon S3 for example, also these data can also be inspected form the container `minio`
 ![](images/minio.png)
+
+<br/>
+
+Also and interesting observation, the csv files of one solar panel data of one day was around `600MB` in size, now the 3 solar panels data combined is only around `171.6MB` in size, this nice reduction in size comes from the fact that iceberg saves the data in `parquet` format and this format uses `run length encoding` which can reduce the size of the data if the low carnality data are grouped together, and that is the case in our data, the average sun hours is something like `11` hours, and the rest is just `zero`, so the solar power generated is zero in the rest, and we're partitioning in way that also groups those zeros to have this size reduction as a side effect.
