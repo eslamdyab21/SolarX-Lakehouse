@@ -18,7 +18,7 @@ services:
       - 4040:4040
       - 4041:4041
     volumes:
-      - ./lakehouse:/home/iceberg/warehouse
+      - ./lakehouse/spark:/home/iceberg/warehouse
       - ./notebooks:/home/iceberg/notebooks/notebooks
 
     networks:
@@ -36,7 +36,7 @@ services:
 
     volumes:
       - ./spark_workers.sh:/opt/spark/spark_workers.sh
-      - ./lakehouse:/home/iceberg/warehouse
+      - ./lakehouse/spark:/home/iceberg/warehouse
       - ./notebooks:/home/iceberg/notebooks/notebooks
     
     networks:
@@ -67,7 +67,7 @@ services:
 
     volumes:
       - ./spark_workers.sh:/opt/spark/spark_workers.sh
-      - ./lakehouse:/home/iceberg/warehouse
+      - ./lakehouse/spark:/home/iceberg/warehouse
       - ./notebooks:/home/iceberg/notebooks/notebooks
 
     networks:
@@ -92,7 +92,7 @@ services:
 
     volumes:
       - ./spark_workers.sh:/opt/spark/spark_workers.sh
-      - ./lakehouse:/home/iceberg/warehouse
+      - ./lakehouse/spark:/home/iceberg/warehouse
       - ./notebooks:/home/iceberg/notebooks/notebooks
 
     networks:
@@ -118,6 +118,8 @@ services:
 
   #   volumes:
   #     - ./spark_workers.sh:/opt/spark/spark_workers.sh
+  #     - ./lakehouse/spark:/home/iceberg/warehouse
+  #     - ./notebooks:/home/iceberg/notebooks/notebooks
 
   #   networks:
   #     - iceberg_net
@@ -160,6 +162,8 @@ services:
       - MINIO_ROOT_USER=admin
       - MINIO_ROOT_PASSWORD=password
       - MINIO_DOMAIN=minio
+    volumes:
+      - ./lakehouse/iceberg_minio:/data
     networks:
       iceberg_net:
         aliases:
