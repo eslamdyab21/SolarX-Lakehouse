@@ -69,6 +69,7 @@ We could've grabed some home power usage data from the internet, but to make it 
 	.
 	.
 	.
+}
 ```
 
 Above is a sample of to get an idea, `consumption` have a minimum and maximum value a device can draw, and in `time` we specify ranges each separated with a `,`.
