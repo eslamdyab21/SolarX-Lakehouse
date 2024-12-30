@@ -334,17 +334,17 @@ CREATE TABLE SolarX_Raw_Transactions.solar_panel_readings(
     timestamp TIMESTAMP NOT NULL,
     15_minutes_interval INT NOT NULL,
     panel_id INT NOT NULL,
-    generated_power_amount FLOAT NOT NULL
+    generation_power_wh FLOAT NOT NULL
 )
 USING iceberg
-PARTITIONED BY (DAY(timestamp), 15_minutes_interval);
+PARTITIONED BY (DAY(timestamp), panel_id, 15_minutes_interval);
 ```
 
-We are partitioning the raw readings on both the `day` and the `15_minutes_interval`, and the power is calculated same as before, the only difference is that now we have 3 solar panels and instead of saving the data into `csvs`, we are saving them with `iceberg`, and iceberg under the hod saves them in `parquet` format. 
+We are partitioning the raw readings on the `day`, `solar panel id` and the `15_minutes_interval`, the power is calculated same as before, the only difference is that now we have 3 solar panels and instead of saving the data into `csvs`, we are saving them with `iceberg`, and iceberg under the hod saves them in `parquet` format. 
 
 <br/>
 
-We are partitioning the raw readings on both the `day` and the `15_minutes_interval`, that would be a lot of partitions you might say in the long run, we would only keep the last 7 days of raw data in our lakehouse, because after this one week period we generally won't be interested in the high frequency data and also to minimize space cost.
+We are partitioning the raw readings on both the `day`, that would be a lot of partitions you might say in the long run, we would only keep the last 7 days of raw data in our lakehouse, because after this one week period we generally won't be interested in the high frequency data and also to minimize space cost.
 
 Instead we will save the past data in the `15_minutes_interval` frequency in another table in the warehouse, and this table is what will be used in the analytics.
 
@@ -363,22 +363,21 @@ solar_panel_readings_df1.createOrReplaceTempView("temp_view_1")
 ```sql
 %%sql
     
-INSERT INTO SolarX_Raw_Transactions.solar_panel_readings (timestamp, 15_minutes_interval, panel_id, generated_power_amount)
+INSERT INTO SolarX_Raw_Transactions.solar_panel_readings (timestamp, 15_minutes_interval, panel_id, generation_power_wh)
 SELECT timestamp                  as timestamp,
        15_min_interval            as 15_minutes_interval,
        1                          as panel_id,
-       current_generation_watt    as generated_power_amount
+       current_generation_watt    as generation_power_wh
        
 FROM temp_view_1
 ```
 
-![](images/panel1.png)
-
-And after inserting the other two solar panels data, another two files get created.
-![](images/panel23.png)
+And after inserting the other two solar panels data
+![](images/panels123.png)
 
 Same structure will apply if we were using a cloud storage based service like amazon S3 for example, also these data can also be inspected form the container `minio`
-![](images/minio.png)
+![](images/minio2.png)
+
 
 <br/>
 
