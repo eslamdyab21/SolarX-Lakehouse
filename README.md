@@ -65,10 +65,6 @@ We could've grabed some home power usage data from the internet, but to make it 
 		"consumption": [500,3000],
 		"time": "00:00-24:00"
 		},
-	.
-	.
-	.
-	.
 }
 ```
 
