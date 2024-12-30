@@ -5,7 +5,8 @@ Designing a Lakehouse for extensive data frequency of SoalrX with Spark and Iceb
 
 <br/>
 
-# Some Background on the Data
+# Some Background on the Data Sources
+## Weather Data
 
 We start by splitting the `EGY_QH_Helwan` data collected back in 2013, the data is sampled each one hour and is nicely formatted in a csv file after running the `split_weather_data.py` script which makes a csv file for each day in the `weather_history_splitted` directory
 
@@ -20,9 +21,9 @@ python3 split_weather_data.py
 A sample of the `2013-01-01.csv` data
 ![](images/sample1.png)
 
-The average size of this data is 23 KB with about 1400 rows, but to truly leverage spark capabilities I resampled this data down to go from frequency by hour to 5 ms, which increased the same day csv file size to around 730 MB with around 16,536001 rows.
+The average size of this data is 23 KB with about 1400 rows, but to truly leverage spark capabilities I resampled this data down to go from frequency by hour to 5 ms, which increased the same day csv file size to around `730 MB` with around `16,536001 rows`.
 
-The resampling happens with the `resample_weather_data.py` script which takes the above csv file an argument, resample it and write it down to `lakehouse/weather_history_splitted_resampled` directory.
+The resampling happens with the `resample_weather_data.py` script which takes the above csv file an argument, resample it and write it down to `lakehouse/spark/weather_history_splitted_resampled` directory.
 
 ```bash
 python3 resample_weather_data.py weather_history_splitted/2013-01-01.csv
@@ -35,6 +36,54 @@ python3 resample_weather_data.py weather_history_splitted/2013-01-01.csv
 A sample of the resampled `2013-01-01.csv` data
 ![](images/sample2.png)
 
+<br/>
+<br/>
+
+## Home Data
+
+We could've grabed some home power usage data from the internet, but to make it more customized and variable, the home power usage is calculated based on the data provided in a `json` file `home_appliances_consumption.json`, in it we add the different devices we have in our home and their corresponding hourly power rating and the time of use.
+
+```json
+{
+	"Refrigerator":	
+		{
+		"consumption": [300,1500],
+		"time": "00:00-24:00"
+		},
+	"Electric Oven":
+		{
+		"consumption": [2000,5000],
+		"time": "16:00-16:30,21:00-21:30"
+		},
+	"Electric Kettle":
+		{
+		"consumption": [1500,1500],
+		"time": "07:00-07:15,12:00-12:15,16:30-17:00,21:30-22:00"
+		},
+	"Air Conditioner":
+		{
+		"consumption": [500,3000],
+		"time": "00:00-24:00"
+		},
+	........
+```
+
+Above is a sample of to get an idea, `consumption` have a minimum and maximum value a device can draw, and in `time` we specify ranges each separated with a `,`.
+
+<br/>
+
+The data is also resampled to `5ms` like the weather data for the same reason and it's size this time is around `1.3GB`
+
+The process happens using the `home_power_usage.py` script which takes the same above weather csv file an argument and write the home usage down to `lakehouse/spark/home_power_usage_history` directory, the weather csv file purpose is just to extract the corresponding date.
+
+```bash
+python3 home_power_usage.py weather_history_splitted/2013-01-03.csv
+```
+
+A sample of the resampled `2013-01-01.csv` data and files sizes
+![](images/home_data.png)
+
+<br/>
 <br/>
 <br/>
 
