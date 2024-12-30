@@ -31,7 +31,10 @@ def resample(df, home_data_day_file):
 
     df.set_index('timestamp', inplace=True)
     
-
+    df['min_consumption_wh'] = df['min_consumption_wh']/(60*60*1000/5)
+    df['max_consumption_wh'] = df['max_consumption_wh']/(60*60*1000/5)
+    df['avg_consumption_wh'] = df['avg_consumption_wh']/(60*60*1000/5)
+    
     df = df.resample('5ms').mean().interpolate()
     df.reset_index(inplace=True)
 
@@ -55,8 +58,8 @@ def generate_power_usage(df):
                 else:
                     minute = '00'
 
-                min_consumption = row["min_consumption_rating"] * random.uniform(0.5, 1.5)
-                max_consumption = row["max_consumption_rating"] * random.uniform(0.5, 1.5)
+                min_consumption = row["min_consumption_rating"] * random.uniform(0.5, 1)
+                max_consumption = row["max_consumption_rating"] * random.uniform(0.5, 1)
                 avg_consumption = (min_consumption + max_consumption) / 2
                 expanded_rows.append({
                     "hour": str(hour) + ':' + minute,
