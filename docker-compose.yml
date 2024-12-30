@@ -163,7 +163,7 @@ services:
       - MINIO_ROOT_PASSWORD=password
       - MINIO_DOMAIN=minio
     volumes:
-      - ./lakehouse/iceberg_minio:/data
+      # - ./lakehouse/iceberg_minio:/data
       - iceberg-minio-data:/data
     networks:
       iceberg_net:
