@@ -24,14 +24,17 @@ def save_file(df, home_data_day_file):
 def resample(df, home_data_day_file):
     # extract date from argv
     date = home_data_day_file.split('/')[-1].split('.')[0]
-
-    df["timestamp"] = pd.to_datetime(date + " " + df["hour"].astype(str), format="%Y-%m-%d %H")
+    df["timestamp"] = pd.to_datetime(date + " " + df["hour"].astype(str), format="%Y-%m-%d %H:%M")
+    
+    df = df.sort_values(by='timestamp')
     del df['hour']
-    df.set_index('timestamp', inplace=True)
 
-    # df = df.resample('5ms').mean().interpolate()
+    df.set_index('timestamp', inplace=True)
+    
+
+    df = df.resample('5ms').mean().interpolate()
     df.reset_index(inplace=True)
-    # print(df)
+
     return df
 
 
@@ -47,12 +50,16 @@ def generate_power_usage(df):
             for hour in range(start_hour, end_hour):
                 if hour == 0:
                     continue
+                elif hour == 23:
+                    minute = '59'
+                else:
+                    minute = '00'
 
                 min_consumption = row["min_consumption_rating"] * random.uniform(0.5, 1.5)
                 max_consumption = row["max_consumption_rating"] * random.uniform(0.5, 1.5)
                 avg_consumption = (min_consumption + max_consumption) / 2
                 expanded_rows.append({
-                    "hour": hour,
+                    "hour": str(hour) + ':' + minute,
                     "min_consumption_wh": min_consumption,
                     "max_consumption_wh": max_consumption,
                     "avg_consumption_wh": avg_consumption
