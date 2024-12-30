@@ -72,7 +72,7 @@ Above is a sample of to get an idea, `consumption` have a minimum and maximum va
 
 <br/>
 
-The data is also resampled to `5ms` like the weather data for the same reason and it's size this time is around `1.3GB`
+The data is also resampled to `5ms` like the weather data for the same reason and it's size this time is around `1.4GB`
 
 The process happens using the `home_power_usage.py` script which takes the same above weather csv file an argument and write the home usage down to `lakehouse/spark/home_power_usage_history` directory, the weather csv file purpose is just to extract the corresponding date.
 
@@ -81,6 +81,7 @@ python3 home_power_usage.py weather_history_splitted/2013-01-03.csv
 ```
 
 A sample of the resampled `2013-01-01.csv` data and files sizes
+
 ![](images/home_data.png)
 
 <br/>
@@ -308,7 +309,7 @@ So going forward will use `iceberg` for that, iceberg also have a nice api that 
 <br/>
 
 # Lakehouse Raw Records 
-##  Solar tables
+##  Solar Tables
 
 You can find the code in the `notebooks/solar_panel_iceberg_tables.ipynb` which will be a `.py` file later with the others to run the pipeline with `Airflow`.
 
@@ -336,10 +337,16 @@ CREATE TABLE SolarX_Raw_Transactions.solar_panel_readings(
     generated_power_amount FLOAT NOT NULL
 )
 USING iceberg
-PARTITIONED BY (MONTH(timestamp), 15_minutes_interval);
+PARTITIONED BY (DAY(timestamp), 15_minutes_interval);
 ```
 
-We are partitioning the raw readings on both the `month` and the `15_minutes_interval`, and the power is calculated same as before, the only difference is that now we have 3 solar panels and instead of saving the data into `csvs`, we are saving them with `iceberg`, and iceberg under the hod saves them in `parquet` format. 
+We are partitioning the raw readings on both the `day` and the `15_minutes_interval`, and the power is calculated same as before, the only difference is that now we have 3 solar panels and instead of saving the data into `csvs`, we are saving them with `iceberg`, and iceberg under the hod saves them in `parquet` format. 
+
+<br/>
+
+We are partitioning the raw readings on both the `day` and the `15_minutes_interval`, that would be a lot of partitions you might say in the long run, we would only keep the last 7 days of raw data in our lakehouse, because after this one week period we generally won't be interested in the high frequency data and also to minimize space cost.
+
+Instead we will save the past data in the `15_minutes_interval` frequency in another table in the warehouse, and this table is what will be used in the analytics.
 
 <br/>
 
@@ -376,3 +383,53 @@ Same structure will apply if we were using a cloud storage based service like am
 <br/>
 
 Also and interesting observation, the csv files of one solar panel data of one day was around `600MB` in size, now the 3 solar panels data combined is only around `171.6MB` in size, this nice reduction in size comes from the fact that iceberg saves the data in `parquet` format and this format uses `run length encoding` which can reduce the size of the data if the low cardinality data are grouped together, and that is the case in our data, the average sun hours is something like `11` hours a day, and the rest is just `zero`, so the solar power generated is zero in the rest, and we're partitioning in way that also groups those zeros together to achieve this reduction in size.
+
+
+<br/>
+<br/>
+
+##  Home Power Usage Tables
+You can find the code in the `notebooks/home_power_load_iceberg_tables.ipynb` which will be a `.py` file later with the others to run the pipeline with `Airflow`.
+
+Only one table is used here which has the power usage related data
+```sql
+%%sql
+
+CREATE TABLE SolarX_Raw_Transactions.home_power_readings(
+    timestamp               TIMESTAMP NOT NULL,
+    15_minutes_interval     SMALLINT  NOT NULL,
+    min_consumption_wh      FLOAT     NOT NULL,
+    max_consumption_wh      FLOAT     NOT NULL
+)
+USING iceberg
+PARTITIONED BY (DAY(timestamp), 15_minutes_interval);
+```
+
+We are partitioning the raw readings on both the `day` and the `15_minutes_interval`, that would be a lot of partitions you might say in the long run, we would only keep the last 7 days of raw data in our lakehouse, because after this one week period we generally won't be interested in the high frequency data and also to minimize space cost.
+
+Instead we will save the past data in the 15_minutes_interval frequency in another table in the warehouse, and this table is what will be used in the analytics.
+
+![](images/minio_home.png)
+
+Also the 3 days worth of data size combined is only `350MB` compared to one day of data in the source making `1.4GB`.
+
+<br/>
+
+Some quick analysis
+```sql
+%%sql
+
+SELECT 
+    DAY(timestamp) as day, 
+    SUM(min_consumption_wh)/1000 as min_consumption_kwh, 
+    SUM(max_consumption_wh)/1000 as max_consumption_kwh
+FROM SolarX_Raw_Transactions.home_power_readings
+GROUP BY day
+
+|day|min_consumption_kwh|max_consumption_kwh|
+|-|------------------|------------------|
+|1|31.030535656945837|126.82835777154983|
+|2|33.01199622871832 |121.20579759246623|
+|3|31.291361060320924|121.99561212848174|
+```
+
