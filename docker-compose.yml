@@ -164,6 +164,7 @@ services:
       - MINIO_DOMAIN=minio
     volumes:
       - ./lakehouse/iceberg_minio:/data
+      - iceberg-minio-data:/data
     networks:
       iceberg_net:
         aliases:
@@ -195,6 +196,10 @@ services:
       tail -f /dev/null
       "
 
+
+volumes:
+  iceberg-minio-data:
+    name: iceberg-minio-data
 
 
 networks:
