@@ -227,7 +227,7 @@ Note that we could've just run the script as a command in docker compose file, b
 <br/>
 <br/>
 
-# Derive Solar Panel Readings Fata with Spark
+# Derive Solar Panel Readings with Spark
 Here we start working on the 730 MB and 16,536001 records of data of first day, we start by setting up the cluster, the choice was 3 workers with 6 executors each with 1 core and 512M for memory.
 
 ```python
@@ -311,7 +311,7 @@ So going forward will use `iceberg` for that, iceberg also have a nice api that 
 # Lakehouse Raw Records 
 ##  Solar Tables
 
-You can find the code in the `notebooks/solar_panel_iceberg_tables.ipynb` which will be a `.py` file later with the others to run the pipeline with `Airflow`.
+You can find the code in the `notebooks/raw_solar_panel_iceberg_tables.ipynb` which will be a `.py` file later with the others to run the pipeline with `Airflow`.
 
 We start with those two tables solar_panel and solar_panel_readings
 ```sql 
@@ -388,7 +388,7 @@ Also and interesting observation, the csv files of one solar panel data of one d
 <br/>
 
 ##  Home Power Usage Tables
-You can find the code in the `notebooks/home_power_load_iceberg_tables.ipynb` which will be a `.py` file later with the others to run the pipeline with `Airflow`.
+You can find the code in the `notebooks/raw_home_power_load_iceberg_tables.ipynb` which will be a `.py` file later with the others to run the pipeline with `Airflow`.
 
 Only one table is used here which has the power usage related data
 ```sql
@@ -432,3 +432,141 @@ GROUP BY day
 |3|31.291361060320924|121.99561212848174|
 ```
 
+
+<br/>
+<br/>
+<br/>
+
+# Warehouse Analytics
+In this part we will aggregate the raw data into a low frequency data which are suitable for long term storage and would be easier to analyse and is more governed. 
+
+We start by creating a new name-space/database in iceberg catalog for the warehouse tables, separate from the previous `SolarX_Raw_Transactions` of the raw data.
+```sql
+%%sql
+
+CREATE DATABASE IF NOT EXISTS SolarX_WH
+```
+
+<br/>
+
+## Model:
+You can find the code in the `notebooks/wh_facts_dimensions_iceberg_tables.ipynb` which will be a `.py` file later with the others to run the pipeline with `Airflow`.
+
+### Home Dimension
+```sql
+%%sql
+
+CREATE TABLE SolarX_WH.dim_home(
+    home_key                            INT         NOT NULL,
+    home_id                             INT         NOT NULL,
+    appliance                           VARCHAR(25) NOT NULL,    
+    consumption_power                   FLOAT       NOT NULL,
+    usage_time                          VARCHAR(50) NOT NULL,
+
+    -- scd type2 for consumption_power
+    consumption_power_start_date        TIMESTAMP   NOT NULL,
+    consumption_power_end_date          TIMESTAMP,
+
+    -- scd type2 for usage_time
+    usage_time_start_date               TIMESTAMP  NOT NULL,
+    usage_time_end_date                 TIMESTAMP
+)
+USING iceberg;
+```
+We model the `consumption_power` and `usage_time` as slowly changing dimensions of type 2 to be able to historically track the home load changes.
+### Home Fact
+```sql
+%%sql
+
+CREATE TABLE SolarX_WH.fact_home_power_readings(
+    home_power_reading_key          INT           NOT NULL,
+    home_key                        SMALLINT      NOT NULL,   -- REFERENCES dim_home(home_key)
+    date_key                        SMALLINT      NOT NULL,   -- REFERENCES dim_date(date_key)
+
+    home_power_reading_id          VARCHAR(25)   NOT NULL,
+    date                            DATE          NOT NULL,
+    15_minutes_interval             SMALLINT      NOT NULL,
+    min_consumption_power_wh        FLOAT         NOT NULL,
+    max_consumption_power_wh        FLOAT         NOT NULL 
+)
+
+USING iceberg
+PARTITIONED BY (MONTH(date), 15_minutes_interval)
+```
+
+It's worth noting here that the `home_power_reading_key` will be a combination of the `date` and the `15_minutes_interval` from the source raw data to uniquely identify the readings, a snapshot of how will it look like is below.
+
+```sql
+%%sql
+
+SELECT
+    CONCAT(DATE(timestamp), '--', 15_minutes_interval) as home_power_readings_id,
+    DATE(timestamp) as date,
+    15_minutes_interval,
+    SUM(min_consumption_wh) as min_consumption_power_wh,
+    SUM(max_consumption_wh) as max_consumption_power_wh
+FROM 
+    SolarX_Raw_Transactions.home_power_readings
+WHERE 
+    DAY(timestamp) = 1
+GROUP BY 
+    DATE(timestamp), 15_minutes_interval
+SORT BY
+    15_minutes_interval
+LIMIT 10
+```
+
+![](images/home_power_reading_id.png)
+
+<br/>
+
+### Solar Panel Dimension
+```sql
+%%sql
+
+CREATE TABLE SolarX_WH.dim_solar_panel(
+    solar_panel_key                             SMALLINT    NOT NULL,
+    solar_panel_id                              SMALLINT    NOT NULL,
+    name                                        VARCHAR(20) NOT NULL,    
+    capacity_kwh                                FLOAT       NOT NULL,
+    intensity_power_rating_wh                   FLOAT       NOT NULL,
+    temperature_power_rating_c                  FLOAT       NOT NULL,
+
+    -- scd type2 for capacity_kwh
+    capacity_kwh_start_date                     TIMESTAMP   NOT NULL,
+    capacity_kwh_end_date                       TIMESTAMP,
+
+    -- scd type2 for intensity_power_rating_wh
+    intensity_power_rating_wh_start_date        TIMESTAMP  NOT NULL,
+    intensity_power_rating_wh_end_date          TIMESTAMP,
+
+    -- scd type2 for temperature_power_rating_c
+    temperature_power_rating_c_start_date       TIMESTAMP  NOT NULL,
+    temperature_power_rating_c_end_date         TIMESTAMP
+)
+USING iceberg;
+```
+We model the `capacity_kwh`, `intensity_power_rating_wh` and `temperature_power_rating_c` as slowly changing dimensions of type 2 to be able to historically track the solar panels changes.
+
+### Solar Panel Fact
+```sql
+%%sql
+
+CREATE TABLE SolarX_WH.fact_solar_panel_power_readings(
+    solar_panel_reading_key         INT           NOT NULL,
+    solar_panel_key                 SMALLINT      NOT NULL,   -- REFERENCES dim_solar_panel(solar_panel_key)
+    date_key                        SMALLINT      NOT NULL,   -- REFERENCES dim_date(date_key)
+
+    solar_panel_reading_id          VARCHAR(25)   NOT NULL,
+    date                            DATE          NOT NULL,
+    15_minutes_interval             SMALLINT      NOT NULL,
+    generation_power_wh             FLOAT         NOT NULL 
+)
+
+USING iceberg
+PARTITIONED BY (MONTH(date), 15_minutes_interval)
+```
+
+It's also worth noting here that the `solar_panel_reading_id` will be a combination of the `date` and the `15_minutes_interval` from the source raw data to uniquely identify the readings, a snapshot of how will it look like is below.
+
+![](images/panel_reading_id.png)
