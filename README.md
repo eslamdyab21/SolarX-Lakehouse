@@ -437,7 +437,7 @@ GROUP BY day
 <br/>
 <br/>
 
-# Warehouse Analytics
+# Warehouse
 In this part we will aggregate the raw data into a low frequency data which are suitable for long term storage and would be easier to analyse and is more governed. 
 
 We start by creating a new name-space/database in iceberg catalog for the warehouse tables, separate from the previous `SolarX_Raw_Transactions` of the raw data.
