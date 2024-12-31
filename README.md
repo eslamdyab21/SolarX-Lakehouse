@@ -449,7 +449,7 @@ CREATE DATABASE IF NOT EXISTS SolarX_WH
 
 <br/>
 
-## Model:
+## Model
 You can find the code in the `notebooks/wh_facts_dimensions_iceberg_tables.ipynb` which will be a `.py` file later with the others to run the pipeline with `Airflow`.
 
 ### Home Dimension
@@ -474,6 +474,9 @@ CREATE TABLE SolarX_WH.dim_home(
 USING iceberg;
 ```
 We model the `consumption_power` and `usage_time` as slowly changing dimensions of type 2 to be able to historically track the home load changes.
+
+<br/>
+
 ### Home Fact
 ```sql
 %%sql
@@ -547,6 +550,8 @@ CREATE TABLE SolarX_WH.dim_solar_panel(
 USING iceberg;
 ```
 We model the `capacity_kwh`, `intensity_power_rating_wh` and `temperature_power_rating_c` as slowly changing dimensions of type 2 to be able to historically track the solar panels changes.
+
+<br/>
 
 ### Solar Panel Fact
 ```sql
