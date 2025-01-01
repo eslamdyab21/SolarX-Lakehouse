@@ -575,3 +575,9 @@ PARTITIONED BY (MONTH(date), 15_minutes_interval)
 It's also worth noting here that the `solar_panel_reading_id` will be a combination of the `date` and the `15_minutes_interval` from the source raw data to uniquely identify the readings, a snapshot of how will it look like is below.
 
 ![](images/panel_reading_id.png)
+
+<br/>
+
+## SolarX_WH namespace/database tables
+![](images/2names.png)
+![](images/dimsfacts.png)
