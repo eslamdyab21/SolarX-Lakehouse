@@ -735,6 +735,8 @@ And here is a test run for the `scd2` when changing the source data -`dim_home_a
 ![](images/scd1.png)
 ![](images/scd2.png)
 
+<br/>
+
 Also `iceberg` natively tracks the changes creating a snapshot with each `INSERT, UPDATE, DELETE` operation we do, so it kinda do the `scd` internally.
 
 ```sql
