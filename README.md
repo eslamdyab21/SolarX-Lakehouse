@@ -452,28 +452,50 @@ CREATE DATABASE IF NOT EXISTS SolarX_WH
 ## Model
 You can find the code in the `notebooks/wh_facts_dimensions_iceberg_tables.ipynb` which will be a `.py` file later with the others to run the pipeline with `Airflow`.
 
+<br/>
+
+### Home Appliances Dimension
+```sql
+%%sql
+
+CREATE TABLE SolarX_WH.dim_home_appliances(
+    home_appliance_key                  SMALLINT    NOT NULL,
+    home_key                            SMALLINT    NOT NULL, -- REFERENCES dim_home(home_key)
+    appliance                           VARCHAR(25) NOT NULL,    
+    min_consumption_power_wh            FLOAT       NOT NULL,
+    max_consumption_power_wh            FLOAT       NOT NULL,
+    usage_time                          VARCHAR(50) NOT NULL
+)
+USING iceberg;
+```
+
+A snapshot of the table content
+![](images/applinaces.png)
+
+<br/>
+
 ### Home Dimension
 ```sql
 %%sql
 
 CREATE TABLE SolarX_WH.dim_home(
-    home_key                            INT         NOT NULL,
-    home_id                             INT         NOT NULL,
-    appliance                           VARCHAR(25) NOT NULL,    
-    consumption_power                   FLOAT       NOT NULL,
-    usage_time                          VARCHAR(50) NOT NULL,
+    home_key                                   SMALLINT    NOT NULL,
+    min_consumption_power_wh                   FLOAT       NOT NULL,
+    max_consumption_power_wh                   FLOAT       NOT NULL,
 
-    -- scd type2 for consumption_power
-    consumption_power_start_date        TIMESTAMP   NOT NULL,
-    consumption_power_end_date          TIMESTAMP,
+    -- scd type2 for min_consumption_power_wh
+    min_consumption_power_wh_start_date        TIMESTAMP   NOT NULL,
+    min_consumption_power_wh_end_date          TIMESTAMP,
 
-    -- scd type2 for usage_time
-    usage_time_start_date               TIMESTAMP  NOT NULL,
-    usage_time_end_date                 TIMESTAMP
+    -- scd type2 for max_consumption_power_wh
+    max_consumption_power_wh_start_date        TIMESTAMP  NOT NULL,
+    max_consumption_power_wh_end_date          TIMESTAMP,
+
+    current_flag                               BOOLEAN NOT NULL
 )
 USING iceberg;
 ```
-We model the `consumption_power` and `usage_time` as slowly changing dimensions of type 2 to be able to historically track the home load changes.
+We model the `consumption_power` as a slowly changing dimensions of type 2 to be able to historically track the home load changes.
 
 <br/>
 
@@ -484,17 +506,16 @@ We model the `consumption_power` and `usage_time` as slowly changing dimensions 
 CREATE TABLE SolarX_WH.fact_home_power_readings(
     home_power_reading_key          INT           NOT NULL,
     home_key                        SMALLINT      NOT NULL,   -- REFERENCES dim_home(home_key)
-    date_key                        SMALLINT      NOT NULL,   -- REFERENCES dim_date(date_key)
+    date_key                        TIMESTAMP     NOT NULL,   -- REFERENCES dim_date(date_key)
 
-    home_power_reading_id          VARCHAR(25)   NOT NULL,
-    date                            DATE          NOT NULL,
+    home_power_reading_id           VARCHAR(25)   NOT NULL,
     15_minutes_interval             SMALLINT      NOT NULL,
     min_consumption_power_wh        FLOAT         NOT NULL,
     max_consumption_power_wh        FLOAT         NOT NULL 
 )
 
 USING iceberg
-PARTITIONED BY (MONTH(date), 15_minutes_interval)
+PARTITIONED BY (MONTH(date_key), 15_minutes_interval)
 ```
 
 It's worth noting here that the `home_power_reading_key` will be a combination of the `date` and the `15_minutes_interval` from the source raw data to uniquely identify the readings, a snapshot of how will it look like is below.
@@ -560,16 +581,15 @@ We model the `capacity_kwh`, `intensity_power_rating_wh` and `temperature_power_
 CREATE TABLE SolarX_WH.fact_solar_panel_power_readings(
     solar_panel_reading_key         INT           NOT NULL,
     solar_panel_key                 SMALLINT      NOT NULL,   -- REFERENCES dim_solar_panel(solar_panel_key)
-    date_key                        SMALLINT      NOT NULL,   -- REFERENCES dim_date(date_key)
+    date_key                        TIMESTAMP     NOT NULL,   -- REFERENCES dim_date(date_key)
 
     solar_panel_reading_id          VARCHAR(25)   NOT NULL,
-    date                            DATE          NOT NULL,
     15_minutes_interval             SMALLINT      NOT NULL,
     generation_power_wh             FLOAT         NOT NULL 
 )
 
 USING iceberg
-PARTITIONED BY (MONTH(date), 15_minutes_interval)
+PARTITIONED BY (MONTH(date_key), 15_minutes_interval)
 ```
 
 It's also worth noting here that the `solar_panel_reading_id` will be a combination of the `date` and the `15_minutes_interval` from the source raw data to uniquely identify the readings, a snapshot of how will it look like is below.
@@ -578,6 +598,156 @@ It's also worth noting here that the `solar_panel_reading_id` will be a combinat
 
 <br/>
 
+### Date Dimension
+```sql
+%%sql
+
+CREATE TABLE SolarX_WH.dim_date
+(
+    date_key            TIMESTAMP  NOT NULL,
+    year                SMALLINT   NOT NULL,
+    quarter             SMALLINT   NOT NULL,
+    month               SMALLINT   NOT NULL,
+    week                SMALLINT   NOT NULL,
+    day                 SMALLINT   NOT NULL,
+    hour                SMALLINT   NOT NULL,
+    minute              SMALLINT   NOT NULL,
+    is_weekend          BOOLEAN    NOT NULL
+)
+
+USING iceberg
+PARTITIONED BY (month, minute)
+```
+
+
+
+<br/>
+
 ## SolarX_WH namespace/database tables
 ![](images/2names.png)
 ![](images/dimsfacts.png)
+
+
+<br/>
+<br/>
+<br/>
+
+## Warehouse ETL
+In this section we extract transform and load the lakehouse raw data into the warehouse lower granularity dimensions and tables.
+
+<br/>
+
+### Home Appliances Dimension
+We use the `home_appliances_consumption.json` file as the source data here and load it into the `dim_home_appliances`, first we process the json data with pandas, make a temporary view of the dataframe then invoke the following 
+```sql
+%%sql
+
+MERGE INTO SolarX_WH.dim_home_appliances dim_app
+USING 
+    (SELECT    home_appliance_key        as home_appliance_key, 
+               home_key                  as home_key,
+               name                      as appliance,
+               min_consumption_rating    as min_consumption_power_wh,
+               max_consumption_rating    as max_consumption_power_wh,
+               usage_time                as usage_time
+    FROM temp_view_2) tmp
+    
+ON dim_app.home_appliance_key = tmp.home_appliance_key
+
+WHEN MATCHED AND (
+    dim_app.min_consumption_power_wh != tmp.min_consumption_power_wh OR
+    dim_app.max_consumption_power_wh != tmp.max_consumption_power_wh
+) THEN UPDATE SET 
+    dim_app.min_consumption_power_wh = tmp.min_consumption_power_wh,
+    dim_app.max_consumption_power_wh = tmp.max_consumption_power_wh
+
+WHEN NOT MATCHED THEN INSERT *
+```
+Which make only insert new data and update the existing if matching, we didn't use `scd2` here, we will use it with the home dimension.
+
+A snapshot of the table content
+![](images/applinaces.png)
+
+<br/>
+
+### Home  Dimension
+We use the `dim_home_appliances` as the source data here and load it into the `dim_home` after calculation the the total power per hour for the home usage, the etl is splited into two main sequential process. 
+```sql
+%%sql
+
+MERGE INTO SolarX_WH.dim_home dim_home
+USING (
+    SELECT 
+        home_key, 
+        SUM(min_consumption_power_wh) AS min_consumption_power_wh,
+        SUM(max_consumption_power_wh) AS max_consumption_power_wh 
+    FROM SolarX_WH.dim_home_appliances
+    GROUP BY home_key
+) dim_app
+ON dim_home.home_key = dim_app.home_key AND dim_home.current_flag = TRUE
+
+WHEN MATCHED AND (
+    dim_home.max_consumption_power_wh != dim_app.max_consumption_power_wh OR
+    dim_home.min_consumption_power_wh != dim_app.min_consumption_power_wh
+) THEN UPDATE SET 
+    dim_home.min_consumption_power_wh_end_date = NOW(),
+    dim_home.max_consumption_power_wh_end_date = NOW(),
+    dim_home.current_flag = FALSE;
+```
+
+```sql
+%%sql
+
+MERGE INTO SolarX_WH.dim_home dim_home
+USING (
+    SELECT 
+        home_key, 
+        SUM(min_consumption_power_wh) AS min_consumption_power_wh,
+        SUM(max_consumption_power_wh) AS max_consumption_power_wh 
+    FROM SolarX_WH.dim_home_appliances
+    GROUP BY home_key
+) dim_app
+ON dim_home.home_key = dim_app.home_key AND dim_home.current_flag = TRUE
+
+WHEN NOT MATCHED THEN 
+INSERT (
+    home_key,
+    min_consumption_power_wh, 
+    max_consumption_power_wh,
+    min_consumption_power_wh_start_date,
+    min_consumption_power_wh_end_date,
+    max_consumption_power_wh_start_date,
+    max_consumption_power_wh_end_date,
+    current_flag
+) VALUES (
+    dim_app.home_key,
+    dim_app.min_consumption_power_wh,
+    dim_app.max_consumption_power_wh,
+    NOW(),
+    NULL,
+    NOW(),
+    NULL,
+    TRUE
+);
+```
+
+And here is a test run for the `scd2` when changing the source data -`dim_home_appliances`- two times in the background and running the `etl` again.
+![](images/scd1.png)
+![](images/scd2.png)
+
+Also `iceberg` natively tracks the changes creating a snapshot with each `INSERT, UPDATE, DELETE` operation we do, so it kinda do the `scd` internally.
+
+```sql
+%%sql
+
+CALL demo.system.create_changelog_view(
+    table => 'SolarX_WH.dim_home',
+    changelog_view => 'dim_home_clv',
+    identifier_columns => array('home_key')
+)
+```
+
+![](images/log1.png)
+
+![](images/log2.png)
+And we can go back and time travel to any snapshot even if delete the record.
