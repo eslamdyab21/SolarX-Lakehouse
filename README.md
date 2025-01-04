@@ -504,18 +504,16 @@ We model the `consumption_power` as a slowly changing dimensions of type 2 to be
 %%sql
 
 CREATE TABLE SolarX_WH.fact_home_power_readings(
-    home_power_reading_key          INT           NOT NULL,
+    home_power_reading_key          TIMESTAMP     NOT NULL,
     home_key                        SMALLINT      NOT NULL,   -- REFERENCES dim_home(home_key)
     date_key                        TIMESTAMP     NOT NULL,   -- REFERENCES dim_date(date_key)
 
-    home_power_reading_id           TIMESTAMP     NOT NULL,
-    15_minutes_interval             SMALLINT      NOT NULL,
     min_consumption_power_wh        FLOAT         NOT NULL,
     max_consumption_power_wh        FLOAT         NOT NULL 
 )
 
 USING iceberg
-PARTITIONED BY (MONTH(date_key), 15_minutes_interval)
+PARTITIONED BY (MONTH(date_key))
 ```
 
 It's worth noting here that the `home_power_reading_key` will be a combination of the `date` and the `15_minutes_interval` from the source raw data to uniquely identify the readings, a snapshot of how will it look like is below.
