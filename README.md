@@ -508,7 +508,7 @@ CREATE TABLE SolarX_WH.fact_home_power_readings(
     home_key                        SMALLINT      NOT NULL,   -- REFERENCES dim_home(home_key)
     date_key                        TIMESTAMP     NOT NULL,   -- REFERENCES dim_date(date_key)
 
-    home_power_reading_id           VARCHAR(25)   NOT NULL,
+    home_power_reading_id           TIMESTAMP     NOT NULL,
     15_minutes_interval             SMALLINT      NOT NULL,
     min_consumption_power_wh        FLOAT         NOT NULL,
     max_consumption_power_wh        FLOAT         NOT NULL 
