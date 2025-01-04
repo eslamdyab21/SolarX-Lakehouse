@@ -660,7 +660,7 @@ USING (
     FROM SolarX_WH.dim_home_appliances
     GROUP BY home_key
 ) dim_app
-ON dim_home.home_key = dim_app.home_key AND dim_home.current_flag = TRUE
+ON dim_home.home_id = dim_app.home_key AND dim_home.current_flag = TRUE
 
 WHEN MATCHED AND (
     dim_home.max_consumption_power_wh != dim_app.max_consumption_power_wh OR
@@ -683,11 +683,12 @@ USING (
     FROM SolarX_WH.dim_home_appliances
     GROUP BY home_key
 ) dim_app
-ON dim_home.home_key = dim_app.home_key AND dim_home.current_flag = TRUE
+ON dim_home.home_id = dim_app.home_key AND dim_home.current_flag = TRUE
 
 WHEN NOT MATCHED THEN 
 INSERT (
     home_key,
+    home_id,
     min_consumption_power_wh, 
     max_consumption_power_wh,
     min_consumption_power_wh_start_date,
@@ -696,7 +697,8 @@ INSERT (
     max_consumption_power_wh_end_date,
     current_flag
 ) VALUES (
-    dim_app.home_key,
+    (SELECT COUNT(*) FROM SolarX_WH.dim_home) + 1,
+    1,
     dim_app.min_consumption_power_wh,
     dim_app.max_consumption_power_wh,
     NOW(),
@@ -708,6 +710,7 @@ INSERT (
 ```
 
 And here is a test run for the `scd2` when changing the source data -`dim_home_appliances`- two times in the background and running the `etl` again.
+
 ![](images/scd1.png)
 ![](images/scd2.png)
 
@@ -721,7 +724,7 @@ Also `iceberg` natively tracks the changes creating a snapshot with each `INSERT
 CALL demo.system.create_changelog_view(
     table => 'SolarX_WH.dim_home',
     changelog_view => 'dim_home_clv',
-    identifier_columns => array('home_key')
+    identifier_columns => array('home_id')
 )
 ```
 
@@ -729,3 +732,101 @@ CALL demo.system.create_changelog_view(
 
 ![](images/log2.png)
 And we can go back and time travel to any snapshot even if delete the record.
+
+
+
+### Home Power Readings  Fact
+We use the high rate raw `SolarX_Raw_Transactions.home_power_readings` as the source data here and load it into the `fact_home_power_readings` after extracting the relevant data from the source, like decrease the granularity from ms to batches of 15 minutes and extracting the the date and keys.
+
+We also take the `dim_home` from earlier as a source too for the `home_key`.
+
+<br/>
+
+The ETL process consists of two main parts, First extract the desired data from the raw source with the below query
+```sql
+%%sql
+
+SELECT
+     CAST(CONCAT(
+        YEAR(timestamp), '-', 
+        LPAD(MONTH(timestamp), 2, '0'), '-', 
+        LPAD(DAY(timestamp), 2, '0'), ' ',
+        LPAD(HOUR(timestamp), 2, '0'), ':',
+        LPAD(FLOOR(MINUTE(timestamp) / 15) * 15, 2, '0'), ':00'
+    ) AS TIMESTAMP) AS home_power_reading_key,
+    DATE(timestamp) AS date,
+    15_minutes_interval,
+    SUM(min_consumption_wh) AS min_consumption_power_wh,
+    SUM(max_consumption_wh) AS max_consumption_power_wh
+FROM 
+    SolarX_Raw_Transactions.home_power_readings
+WHERE 
+    DAY(timestamp) = 1
+GROUP BY 
+    15_minutes_interval, home_power_reading_key, DATE(timestamp)
+ORDER BY 
+    home_power_reading_key
+LIMIT 10
+```
+A look of how this looks like
+![](images/fact_hp1.png)
+We used the timestamp of 15 minutes chunks as a surrogate key, it's also not strait forward to get the normal incremental key in a parallel computing setup like here, and the timestamp is guaranteed to be unique.
+
+Then we use the previous query as window function with merge operation to only insert new data
+```sql
+%%sql
+
+WITH staging_table AS (
+    SELECT
+         CAST(CONCAT(
+            YEAR(timestamp), '-', 
+            LPAD(MONTH(timestamp), 2, '0'), '-', 
+            LPAD(DAY(timestamp), 2, '0'), ' ',
+            LPAD(HOUR(timestamp), 2, '0'), ':',
+            LPAD(FLOOR(MINUTE(timestamp) / 15) * 15, 2, '0'), ':00'
+        ) AS TIMESTAMP) AS home_power_reading_key,
+        DATE(timestamp) AS date,
+        15_minutes_interval,
+        SUM(min_consumption_wh) AS min_consumption_power_wh,
+        SUM(max_consumption_wh) AS max_consumption_power_wh
+    FROM 
+        SolarX_Raw_Transactions.home_power_readings
+    WHERE 
+        DAY(timestamp) = 1
+    GROUP BY 
+        15_minutes_interval, home_power_reading_key, DATE(timestamp)
+)
+
+
+    
+MERGE INTO SolarX_WH.fact_home_power_readings AS target
+USING staging_table AS source
+ON target.home_power_reading_key = source.home_power_reading_key
+      
+WHEN NOT MATCHED THEN
+    INSERT (home_power_reading_key, 
+            home_key, 
+            date_key, 
+            min_consumption_power_wh,
+            max_consumption_power_wh
+    
+    ) 
+    VALUES (source.home_power_reading_key,
+            (SELECT home_key FROM SolarX_WH.dim_home WHERE dim_home.current_flag = TRUE), 
+            source.home_power_reading_key,
+            source.min_consumption_power_wh,
+            source.max_consumption_power_wh     
+    );
+```
+
+
+And here is the final outcome of this fact table
+![](images/facthp2.png)
+
+<br/>
+
+The above inserted `day 1`  data, now we try inserting `day 2` by only changing `DAY(timestamp) = 1` to `DAY(timestamp) = 2`, also we updated the `dim_home` table to test the `home_key` change.
+![](images/scd1.png)
+![](images/scd2.png)
+
+![](images/fact_hp3.png)
