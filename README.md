@@ -480,6 +480,7 @@ A snapshot of the table content
 
 CREATE TABLE SolarX_WH.dim_home(
     home_key                                   SMALLINT    NOT NULL,
+    home_id                                    SMALLINT    NOT NULL,
     min_consumption_power_wh                   FLOAT       NOT NULL,
     max_consumption_power_wh                   FLOAT       NOT NULL,
 
@@ -518,27 +519,6 @@ PARTITIONED BY (MONTH(date_key))
 
 It's worth noting here that the `home_power_reading_key` will be a combination of the `date` and the `15_minutes_interval` from the source raw data to uniquely identify the readings, a snapshot of how will it look like is below.
 
-```sql
-%%sql
-
-SELECT
-    CONCAT(DATE(timestamp), '--', 15_minutes_interval) as home_power_readings_id,
-    DATE(timestamp) as date,
-    15_minutes_interval,
-    SUM(min_consumption_wh) as min_consumption_power_wh,
-    SUM(max_consumption_wh) as max_consumption_power_wh
-FROM 
-    SolarX_Raw_Transactions.home_power_readings
-WHERE 
-    DAY(timestamp) = 1
-GROUP BY 
-    DATE(timestamp), 15_minutes_interval
-SORT BY
-    15_minutes_interval
-LIMIT 10
-```
-
-![](images/home_power_reading_id.png)
 
 <br/>
 
@@ -591,8 +571,6 @@ PARTITIONED BY (MONTH(date_key), 15_minutes_interval)
 ```
 
 It's also worth noting here that the `solar_panel_reading_id` will be a combination of the `date` and the `15_minutes_interval` from the source raw data to uniquely identify the readings, a snapshot of how will it look like is below.
-
-![](images/panel_reading_id.png)
 
 <br/>
 
