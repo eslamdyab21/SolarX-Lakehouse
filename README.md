@@ -733,6 +733,7 @@ CALL demo.system.create_changelog_view(
 ![](images/log2.png)
 And we can go back and time travel to any snapshot even if delete the record.
 
+<br/>
 
 
 ### Home Power Readings  Fact
