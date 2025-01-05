@@ -873,4 +873,66 @@ And here is a test run for the `scd2` when changing the source data two times in
 
 ![](images/panelscd2.png)
 
+The `solar_panel_key` is a composite of both the `solar_panel_id` and the `timestamp` to uniquely identify the record, first digit is the `solar_panel_id` and the rest is the `timestamp`
+
+
+<br/>
+
+
+### Solar Panel Power Reading Fact
+We use the high rate raw `SolarX_Raw_Transactions.solar_panel_readings` as the source data here and load it into the `fact_solar_panel_power_readings` after extracting the relevant data from the source.
+
+
+This `ETL` is a bit different than the others because it involves a `join` step between the `dim_solar_panel` and the staging table of the raw data to get the `solar_panel_key` from the dimension of the corresponding inserted panel power reading.
+
+
+And in this merge `broadcast` join is used to broadcast the smaller table (dimension table) to the other staging table partitions to avoid shuffling latency, and to do saw I had to get both the staging table and the dimension table into two `pyspark df` and the join with pyspark, because the broadcast join can't be leverage in inline normal sql with iceberg.
+
+![](images/broadcastjoin1.png)
+Here is the two queries with pyspark
+
+```python
+from pyspark.sql.functions import broadcast
+
+
+staging_df = spark.sql(staging_query)
+dimension_df = spark.sql(dim_solar_panel_current_query)
+
+# Broadcast the smaller dimension table for the join
+joined_df = staging_df.join(
+    broadcast(dimension_df),
+    (staging_df.panel_id == dimension_df.solar_panel_id),
+    "left"
+)
+
+joined_df.createOrReplaceTempView("staging_temp_view")
+```
+
+![](images/broadcastjoin2.png)
+
+Then we insert the new records only to the fact table with iceberg
+```sql
+%%sql
+    
+MERGE INTO SolarX_WH.fact_solar_panel_power_readings AS target
+USING staging_temp_view AS source
+ON target.solar_panel_id = source.panel_id AND target.date_key = source.truncated_timestamp
+      
+WHEN NOT MATCHED THEN
+    INSERT (solar_panel_key, 
+            date_key, 
+            solar_panel_id,
+            generation_power_wh
+    
+    ) 
+    VALUES (source.solar_panel_key, 
+            source.truncated_timestamp,
+            source.panel_id,
+            source.generation_power_wh     
+    );
+```
+
+![](images/factsolarreadings.png)
+
+
 
