@@ -31,9 +31,9 @@ def main():
     # -------------- SolarX_WH -------------
     namespace = "SolarX_WH"
     if namespace_exists(spark, namespace):
-        logging.info(f"""check-raw-schema-exists -> {namespace} exists""")
+        logging.info(f"""check-wh-schema-exists -> {namespace} exists""")
     else:
-        logging.info(f"""check-raw-schema-exists -> {namespace} doesn't exists""")
+        logging.info(f"""check-wh-schema-exists -> {namespace} doesn't exists""")
 
 
 
