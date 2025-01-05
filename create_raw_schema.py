@@ -20,19 +20,6 @@ def main():
     logging.info(f"""create-raw-schema-exists -> SolarX_Raw_Transactions tables are created successfully""")
 
 
-    # -------------- SolarX_WH -------------
-    spark.sql(create_wh_namespace)
-    spark.sql(create_wh_dim_home_schema)
-    spark.sql(create_wh_dim_home_appliances_schema)
-    spark.sql(create_wh_fact_home_power_readings_schema)
-    spark.sql(create_wh_dim_solar_panel_schema)
-    spark.sql(create_wh_fact_solar_panel_power_readings_schema)
-    spark.sql(create_wh_dim_date_schema)
-
-    logging.info(f"""create-raw-schema-exists -> SolarX_WH tables are created successfully""")
-
-
-
 if __name__ == "__main__":
     logging.basicConfig(level = "INFO")
     main()
