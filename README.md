@@ -510,7 +510,7 @@ USING iceberg
 PARTITIONED BY (MONTH(date_key))
 ```
 
-It's worth noting here that the `home_power_reading_key` will be a combination of the `date` and the `15_minutes_interval` from the source raw data to uniquely identify the readings, a snapshot of how will it look like is below.
+It's worth noting here that the `home_power_reading_key` will be a combination of the `date` and the `15_minutes_interval` from the source raw data to uniquely identify the readings.
 
 
 <br/>
@@ -544,20 +544,17 @@ We model the `capacity_kwh`, `intensity_power_rating_wh` and `temperature_power_
 %%sql
 
 CREATE TABLE SolarX_WH.fact_solar_panel_power_readings(
-    solar_panel_reading_key         INT           NOT NULL,
     solar_panel_key                 SMALLINT      NOT NULL,   -- REFERENCES dim_solar_panel(solar_panel_key)
     date_key                        TIMESTAMP     NOT NULL,   -- REFERENCES dim_date(date_key)
-
-    solar_panel_reading_id          VARCHAR(25)   NOT NULL,
-    15_minutes_interval             SMALLINT      NOT NULL,
+    
+    solar_panel_id                  INT           NOT NULL,
     generation_power_wh             FLOAT         NOT NULL 
 )
 
 USING iceberg
-PARTITIONED BY (MONTH(date_key), 15_minutes_interval)
+PARTITIONED BY (MONTH(date_key), solar_panel_id)
 ```
 
-It's also worth noting here that the `solar_panel_reading_id` will be a combination of the `date` and the `15_minutes_interval` from the source raw data to uniquely identify the readings, a snapshot of how will it look like is below.
 
 <br/>
 
@@ -934,5 +931,8 @@ WHEN NOT MATCHED THEN
 
 ![](images/factsolarreadings.png)
 
-
+There is no column as a surrogate key here in this fact table, both the `date_key` and `solar_panel_id` serve as a composite unique identifier for each record and made sure that this is the case in the `MERG INTO` section here.
+```sql
+ON target.solar_panel_id = source.panel_id AND target.date_key = source.truncated_timestamp
+```
 
