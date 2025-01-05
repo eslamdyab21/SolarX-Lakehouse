@@ -17,7 +17,7 @@ def main():
     spark.sql(create_raw_solar_panel_schema)
     spark.sql(create_raw_solar_panel_power_readings_schema)
 
-    logging.info(f"""check-raw-schema-exists -> SolarX_Raw_Transactions tables are created successfully""")
+    logging.info(f"""create-raw-schema-exists -> SolarX_Raw_Transactions tables are created successfully""")
 
 
     # -------------- SolarX_WH -------------
@@ -29,7 +29,7 @@ def main():
     spark.sql(create_wh_fact_solar_panel_power_readings_schema)
     spark.sql(create_wh_dim_date_schema)
 
-    logging.info(f"""check-raw-schema-exists -> SolarX_WH tables are created successfully""")
+    logging.info(f"""create-raw-schema-exists -> SolarX_WH tables are created successfully""")
 
 
 
