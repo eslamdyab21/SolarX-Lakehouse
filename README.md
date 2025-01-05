@@ -469,9 +469,6 @@ CREATE TABLE SolarX_WH.dim_home_appliances(
 USING iceberg;
 ```
 
-A snapshot of the table content
-![](images/applinaces.png)
-
 <br/>
 
 ### Home Dimension
@@ -479,20 +476,16 @@ A snapshot of the table content
 %%sql
 
 CREATE TABLE SolarX_WH.dim_home(
-    home_key                                   SMALLINT    NOT NULL,
-    home_id                                    SMALLINT    NOT NULL,
-    min_consumption_power_wh                   FLOAT       NOT NULL,
-    max_consumption_power_wh                   FLOAT       NOT NULL,
+    home_key                             SMALLINT    NOT NULL,
+    home_id                              SMALLINT    NOT NULL,
+    min_consumption_power_wh             FLOAT       NOT NULL,
+    max_consumption_power_wh             FLOAT       NOT NULL,
 
     -- scd type2 for min_consumption_power_wh
-    min_consumption_power_wh_start_date        TIMESTAMP   NOT NULL,
-    min_consumption_power_wh_end_date          TIMESTAMP,
+    start_date                           TIMESTAMP   NOT NULL,
+    end_date                             TIMESTAMP,
 
-    -- scd type2 for max_consumption_power_wh
-    max_consumption_power_wh_start_date        TIMESTAMP  NOT NULL,
-    max_consumption_power_wh_end_date          TIMESTAMP,
-
-    current_flag                               BOOLEAN NOT NULL
+    current_flag                         BOOLEAN NOT NULL
 )
 USING iceberg;
 ```
@@ -527,24 +520,18 @@ It's worth noting here that the `home_power_reading_key` will be a combination o
 %%sql
 
 CREATE TABLE SolarX_WH.dim_solar_panel(
-    solar_panel_key                             SMALLINT    NOT NULL,
+    solar_panel_key                             INT         NOT NULL,
     solar_panel_id                              SMALLINT    NOT NULL,
     name                                        VARCHAR(20) NOT NULL,    
     capacity_kwh                                FLOAT       NOT NULL,
     intensity_power_rating_wh                   FLOAT       NOT NULL,
     temperature_power_rating_c                  FLOAT       NOT NULL,
 
-    -- scd type2 for capacity_kwh
-    capacity_kwh_start_date                     TIMESTAMP   NOT NULL,
-    capacity_kwh_end_date                       TIMESTAMP,
+    -- scd type2
+    start_date                                  TIMESTAMP   NOT NULL,
+    end_date                                    TIMESTAMP,
 
-    -- scd type2 for intensity_power_rating_wh
-    intensity_power_rating_wh_start_date        TIMESTAMP  NOT NULL,
-    intensity_power_rating_wh_end_date          TIMESTAMP,
-
-    -- scd type2 for temperature_power_rating_c
-    temperature_power_rating_c_start_date       TIMESTAMP  NOT NULL,
-    temperature_power_rating_c_end_date         TIMESTAMP
+    current_flag                                BOOLEAN
 )
 USING iceberg;
 ```
@@ -644,6 +631,7 @@ Which make only insert new data and update the existing if matching, we didn't u
 A snapshot of the table content
 ![](images/applinaces.png)
 
+
 <br/>
 
 ### Home  Dimension
@@ -666,8 +654,7 @@ WHEN MATCHED AND (
     dim_home.max_consumption_power_wh != dim_app.max_consumption_power_wh OR
     dim_home.min_consumption_power_wh != dim_app.min_consumption_power_wh
 ) THEN UPDATE SET 
-    dim_home.min_consumption_power_wh_end_date = NOW(),
-    dim_home.max_consumption_power_wh_end_date = NOW(),
+    dim_home.end_date = NOW(),
     dim_home.current_flag = FALSE;
 ```
 
@@ -691,10 +678,8 @@ INSERT (
     home_id,
     min_consumption_power_wh, 
     max_consumption_power_wh,
-    min_consumption_power_wh_start_date,
-    min_consumption_power_wh_end_date,
-    max_consumption_power_wh_start_date,
-    max_consumption_power_wh_end_date,
+    start_date,
+    end_date,
     current_flag
 ) VALUES (
     (SELECT COUNT(*) FROM SolarX_WH.dim_home) + 1,
@@ -703,16 +688,14 @@ INSERT (
     dim_app.max_consumption_power_wh,
     NOW(),
     NULL,
-    NOW(),
-    NULL,
     TRUE
 );
 ```
 
-And here is a test run for the `scd2` when changing the source data -`dim_home_appliances`- two times in the background and running the `etl` again.
+And here is a test run for the `scd2` when changing the source data `dim_home_appliances`- two times in the background and running the `etl` again.
 
-![](images/scd1.png)
-![](images/scd2.png)
+
+![](images/homescd.png)
 
 <br/>
 
@@ -730,13 +713,12 @@ CALL demo.system.create_changelog_view(
 
 ![](images/log1.png)
 
-![](images/log2.png)
 And we can go back and time travel to any snapshot even if delete the record.
 
 <br/>
 
 
-### Home Power Readings  Fact
+### Home Power Readings Fact
 We use the high rate raw `SolarX_Raw_Transactions.home_power_readings` as the source data here and load it into the `fact_home_power_readings` after extracting the relevant data from the source, like decrease the granularity from ms to batches of 15 minutes and extracting the the date and keys.
 
 We also take the `dim_home` from earlier as a source too for the `home_key`.
@@ -827,7 +809,68 @@ And here is the final outcome of this fact table
 <br/>
 
 The above inserted `day 1`  data, now we try inserting `day 2` by only changing `DAY(timestamp) = 1` to `DAY(timestamp) = 2`, also we updated the `dim_home` table to test the `home_key` change.
-![](images/scd1.png)
-![](images/scd2.png)
+![](images/homescd.png)
+
 
 ![](images/fact_hp3.png)
+
+<br/>
+
+
+### Solar Panel Dimension
+We use the `SolarX_Raw_Transactions.solar_panel` as the source data here and load it into the `dim_solar_panel`.
+
+```sql
+%%sql
+
+MERGE INTO SolarX_WH.dim_solar_panel dim_solar_panel
+USING SolarX_Raw_Transactions.solar_panel solar_panel_raw
+ON dim_solar_panel.solar_panel_id = solar_panel_raw.id AND dim_solar_panel.current_flag = TRUE
+
+WHEN MATCHED AND (
+    dim_solar_panel.capacity_kwh != solar_panel_raw.capacity_kwh OR
+    dim_solar_panel.intensity_power_rating_wh != solar_panel_raw.intensity_power_rating OR
+    dim_solar_panel.temperature_power_rating_c != solar_panel_raw.temperature_power_rating
+) THEN UPDATE SET
+    dim_solar_panel.end_date   = NOW(),
+    dim_solar_panel.current_flag = FALSE;
+```
+
+```sql
+%%sql
+
+MERGE INTO SolarX_WH.dim_solar_panel dim_solar_panel
+USING SolarX_Raw_Transactions.solar_panel solar_panel_raw
+ON dim_solar_panel.solar_panel_id = solar_panel_raw.id AND dim_solar_panel.current_flag = TRUE
+
+WHEN NOT MATCHED THEN 
+INSERT (
+    solar_panel_key,
+    solar_panel_id,
+    name, 
+    capacity_kwh,
+    intensity_power_rating_wh,
+    temperature_power_rating_c,
+    start_date,
+    end_date,
+    current_flag
+) VALUES (
+    CAST(CONCAT(solar_panel_raw.id, date_format(NOW(), 'yyyyMMdd')) AS INT),
+    solar_panel_raw.id,
+    solar_panel_raw.name,
+    solar_panel_raw.capacity_kwh,
+    solar_panel_raw.intensity_power_rating,
+    solar_panel_raw.temperature_power_rating,
+    NOW(),
+    NULL,
+    TRUE
+);
+```
+
+And here is a test run for the `scd2` when changing the source data two times in the background and running the `etl` again.
+
+![](images/panelscd1.png)
+
+![](images/panelscd2.png)
+
+
