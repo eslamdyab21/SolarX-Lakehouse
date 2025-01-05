@@ -9,7 +9,7 @@ def main(date):
     spark = (
         SparkSession
         .builder
-        .appName("create wh schema")
+        .appName("create raw home power readings")
         .getOrCreate()
     )
 
