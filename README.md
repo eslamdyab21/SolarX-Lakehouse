@@ -936,3 +936,44 @@ There is no column as a surrogate key here in this fact table, both the `date_ke
 ON target.solar_panel_id = source.panel_id AND target.date_key = source.truncated_timestamp
 ```
 
+
+<br/>
+<br/>
+
+# Submitting ETL Python Scripts to Spark Cluster
+Enter the spark master container
+```bash
+docker exec -it spark-master bash
+```
+
+Inside the `/opt/spark` directory run the following with desired parameters 
+
+- Create raw schema
+```bash
+./bin/spark-submit --master spark://5846f3795ae1:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/create_raw_schema.py
+```
+
+- Create warehouse schema
+```bash
+./bin/spark-submit --master spark://5846f3795ae1:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/create_wh_schema.py
+```
+
+- Rum raw home power readings etl
+It takes an extra parameter, the date in this case `2013-01-01`.  Note that the corresponding csv file `2013-01-01.csv` should be in the `lakehouse/spark/home_power_usage_history/2013-01-01.csv` directory
+```bash
+./bin/spark-submit --master spark://464f44e6c408:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/raw_home_power_readings_etl.py 2013-01-01
+```
+
+
+- Run raw solar panel etl
+```bash
+./bin/spark-submit --master spark://464f44e6c408:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/raw_solar_panel_power_etl.py
+```
+
+
+- Rum raw solar panel power readings etl
+It takes an extra parameter, the date in this case `2013-01-01`.  Note that the corresponding csv file `2013-01-01.csv` should be in the `lakehouse/spark/weather_history_splitted_resampled/2013-01-01.csv` directory
+```bash
+./bin/spark-submit --master spark://464f44e6c408:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/raw_solar_panel_power_readings_etl.py 2013-01-01
+```
+
