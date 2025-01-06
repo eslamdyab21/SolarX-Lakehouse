@@ -39,7 +39,8 @@ def main(date):
 
     logging.info(f"""raw-home-power-etl -> Load into home_power_readings iceberg table successfully""")
 
-
+    spark.stop()
+    
 
 if __name__ == "__main__":
     date = sys.argv[1]

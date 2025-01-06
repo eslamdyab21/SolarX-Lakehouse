@@ -81,7 +81,8 @@ def main(date):
     solar_panel_readings_df = calc_solar_readings(spark, panel_id, weather_df)
     insert_data2iceberg(spark, solar_panel_readings_df, panel_id)
 
-
+    spark.stop()
+    
 
 if __name__ == "__main__":
     date = sys.argv[1]
