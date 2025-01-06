@@ -24,18 +24,22 @@ def main():
     namespace = "SolarX_Raw_Transactions"
     if namespace_exists(spark, namespace):
         logging.info(f"""check-raw-schema-exists -> {namespace} exists""")
+        print("SolarX_Raw_Transactions exists")
     else:
         logging.info(f"""check-raw-schema-exists -> {namespace} doesn't exists""")
+        print("SolarX_Raw_Transactions doesn't exists")
 
 
     # -------------- SolarX_WH -------------
     namespace = "SolarX_WH"
     if namespace_exists(spark, namespace):
         logging.info(f"""check-wh-schema-exists -> {namespace} exists""")
+        print("SolarX_WH exists")
     else:
         logging.info(f"""check-wh-schema-exists -> {namespace} doesn't exists""")
+        print("SolarX_WH doesn't exists")
 
-
+    spark.stop()
 
 if __name__ == "__main__":
     logging.basicConfig(level = "INFO")
