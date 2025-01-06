@@ -2,7 +2,6 @@ from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 import logging
 import sys
-from iceberg_sql_schema_utils import *
 
 
 def main(date):
