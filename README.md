@@ -121,80 +121,12 @@ spark-worker-1:
 
 <br/>
 
-### To start the cluster:
+### To Start the Cluster:
 **An important note**: **make sure your machine have these extra resources for the workers, if not then remove some of the workers or allocate fewer cpu and memory for them**
 
 First we run the docker compose file which will start the spark master, workers and iceberg 
 ```bash
 docker compose up
-```
-
-```bash
-docker ps
-
-spark-worker-4
-	Container ID: 1e04615dcfca
-	Command: "./entrypoint.sh not…"
-	Image: tabulario/spark-iceberg
-	CreatedAt: 2024-12-26 18:34:31 +0200 EET
-	Status: Up 12 minutes
-	Ports: 
-	
-spark-worker-1
-	Container ID: 89ffe36c4c4d
-	Command: "./entrypoint.sh not…"
-	Image: tabulario/spark-iceberg
-	CreatedAt: 2024-12-26 18:34:31 +0200 EET
-	Status: Up 12 minutes
-	Ports: 
-	
-spark-worker-2
-	Container ID: 0c7fdc403ff0
-	Command: "./entrypoint.sh not…"
-	Image: tabulario/spark-iceberg
-	CreatedAt: 2024-12-26 18:34:31 +0200 EET
-	Status: Up 12 minutes
-	Ports: 
-	
-spark-worker-3
-	Container ID: 70fedbe3d4f7
-	Command: "./entrypoint.sh not…"
-	Image: tabulario/spark-iceberg
-	CreatedAt: 2024-12-26 18:34:31 +0200 EET
-	Status: Up 12 minutes
-	Ports: 
-	
-mc
-	Container ID: 6dcc184f047c
-	Command: "/bin/sh -c ' until …"
-	Image: minio/mc
-	CreatedAt: 2024-12-26 18:34:31 +0200 EET
-	Status: Up 12 minutes
-	Ports: 
-	
-spark-master
-	Container ID: 9252dc083912
-	Command: "./entrypoint.sh not…"
-	Image: tabulario/spark-iceberg
-	CreatedAt: 2024-12-26 18:34:31 +0200 EET
-	Status: Up 12 minutes
-	Ports: 0.0.0.0:8080->8080/tcp, :::8080->8080/tcp, 0.0.0.0:8888->8888/tcp, :::8888->8888/tcp, 0.0.0.0:10000-10001->10000-10001/tcp, :::10000-10001->10000-10001/tcp
-	
-minio
-	Container ID: 9c066befff9e
-	Command: "/usr/bin/docker-ent…"
-	Image: minio/minio
-	CreatedAt: 2024-12-26 18:34:31 +0200 EET
-	Status: Up 12 minutes
-	Ports: 0.0.0.0:9000-9001->9000-9001/tcp, :::9000-9001->9000-9001/tcp
-	
-iceberg-rest
-	Container ID: 143c5c0a1703
-	Command: "java -jar iceberg-r…"
-	Image: apache/iceberg-rest-fixture
-	CreatedAt: 2024-12-26 18:34:31 +0200 EET
-	Status: Up 12 minutes (healthy)
-	Ports: 0.0.0.0:8181->8181/tcp, :::8181->8181/tcp
 ```
 
 <br/>
@@ -941,6 +873,11 @@ ON target.solar_panel_id = source.panel_id AND target.date_key = source.truncate
 <br/>
 
 # Submitting ETL Python Scripts to Spark Cluster
+While `jupyter notebooks` are great for development, testing and visualization but they are not sutiple for production environment, that's why in this section we will script everything in normal `.py` files.
+
+<br/>
+
+
 Enter the spark master container
 ```bash
 docker exec -it spark-master bash
@@ -975,3 +912,25 @@ Inside the `/opt/spark` directory run the following with desired parameters
 ./bin/spark-submit --master spark://464f44e6c408:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/raw_solar_panel_power_readings_etl.py 2013-01-01
 ```
 
+
+<br/>
+<br/>
+
+# Submitting ETL Python Scripts to Spark Cluster With Airflow
+Inside the `airflow` directory there is a `docker-compose` file and `Dockerfile` to setup the airflow environment with docker and we are using the same spark network.
+
+We use a lightweight airflow setup here, the docker related files are manly inspired from this repo `https://github.com/ntd284/personal_install_airflow_docker/tree/main/airflow_lite`
+
+
+After starting the environment
+```bash
+docker compose up
+```
+Airflow will be accessible from `localhost:8000` with default username and password `airflow`.
+
+Airflow will run the spark scripts using `ssh`, so we need to enable it in the spark master with following command.
+```bash
+docker exec -it spark-master /bin/bash -c "echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config && echo 'root:password' | chpasswd && service ssh restart"
+```
+
+![](images/airflow_dag.png)
