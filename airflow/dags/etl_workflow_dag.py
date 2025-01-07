@@ -2,6 +2,7 @@ from airflow import DAG
 from airflow.contrib.operators.ssh_operator import SSHOperator
 from airflow.operators.python_operator import BranchPythonOperator
 from airflow.operators.dummy_operator import DummyOperator
+from airflow.models import Variable
 from datetime import datetime
 import base64
 
@@ -18,7 +19,7 @@ def process_output_from_check_raw_schema_exists(ti):
 
 
     if "SolarX_Raw_Transactions exists" in decoded_output:
-        return "raw_home_power_readings_etl" 
+        return "skip_create_raw_schema" 
     else:
         return "create_raw_schema"
 
@@ -42,6 +43,7 @@ default_args = {
 
 
 with DAG('etl_workflow', default_args=default_args, catchup=False) as dag:
+    date = Variable.get("date")
 
     # ------------- schema ------------------
     check_schema_exists = SSHOperator(
@@ -85,13 +87,17 @@ with DAG('etl_workflow', default_args=default_args, catchup=False) as dag:
         trigger_rule='none_failed_or_skipped',  # Continue regardless of which branch was taken
     )
 
+    skip_create_raw_schema = DummyOperator(
+        task_id='skip_create_raw_schema',
+    )
+
 
 
 
     # ------------- raw etl ------------------
     raw_home_power_readings_etl = SSHOperator(
         task_id='raw_home_power_readings_etl',
-        command='/opt/spark/bin/spark-submit --master spark://spark-master:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/raw_home_power_readings_etl.py 2013-01-01 || true',
+        command=f"""/opt/spark/bin/spark-submit --master spark://spark-master:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/raw_home_power_readings_etl.py {date} || true""",
         ssh_conn_id='spark_master_ssh',
         dag=dag,
     )
@@ -105,7 +111,7 @@ with DAG('etl_workflow', default_args=default_args, catchup=False) as dag:
 
     raw_solar_panel_power_readings_etl = SSHOperator(
         task_id='raw_solar_panel_power_readings_etl',
-        command='/opt/spark/bin/spark-submit --master spark://spark-master:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/raw_solar_panel_power_readings_etl.py 2013-01-01 || true',
+        command=f"""/opt/spark/bin/spark-submit --master spark://spark-master:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/raw_solar_panel_power_readings_etl.py {date} || true""",
         ssh_conn_id='spark_master_ssh',
         dag=dag,
     )
@@ -115,5 +121,5 @@ with DAG('etl_workflow', default_args=default_args, catchup=False) as dag:
     
 
     check_schema_exists >> check_raw_schema_exists_output
-    check_raw_schema_exists_output >> [raw_home_power_readings_etl, create_raw_schema] >> merge_task
-    merge_task >> raw_solar_panel_power_etl >> raw_solar_panel_power_readings_etl
+    check_raw_schema_exists_output >> [skip_create_raw_schema, create_raw_schema] >> merge_task
+    merge_task >> raw_home_power_readings_etl >> raw_solar_panel_power_etl >> raw_solar_panel_power_readings_etl
