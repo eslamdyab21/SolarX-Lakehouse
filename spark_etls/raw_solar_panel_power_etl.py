@@ -1,7 +1,5 @@
 from pyspark.sql import SparkSession
-from pyspark.sql import functions as F
 import logging
-
 
 
 
@@ -25,6 +23,10 @@ def main():
         MERGE INTO SolarX_Raw_Transactions.solar_panel target
         USING source_view source
         ON target.id = source.id
+        WHEN MATCHED THEN UPDATE SET
+            target.capacity_kwh = source.capacity_kwh,
+            target.intensity_power_rating = source.intensity_power_rating,
+            target.temperature_power_rating = source.temperature_power_rating,
         WHEN NOT MATCHED THEN 
             INSERT (id, name, capacity_kwh, intensity_power_rating, temperature_power_rating)
             VALUES (source.id, source.name, source.capacity_kwh, source.intensity_power_rating, source.temperature_power_rating)
