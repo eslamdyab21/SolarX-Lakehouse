@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark-config
+data:
+  AWS_ACCESS_KEY_ID: admin
+  AWS_REGION: us-east-1
+  SPARK_MODE_MASTER: master
+  SPARK_MODE_WORKER: worker
+  SPARK_MASTER_URL: spark://spark-master:7077
+  SPARK_WORKER_CORES: '2'
+  SPARK_WORKER_MEMORY: 1G

@@ -1,0 +1,136 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-master-deployment
+  labels:
+    app: spark-master
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spark-master
+  template:
+    metadata:
+      labels:
+        app: spark-master
+    spec:
+      containers:
+      - name: spark-master
+        image: tabulario/spark-iceberg
+        ports:
+        - containerPort: 7077
+        env:
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: AWS_ACCESS_KEY_ID
+        - name: AWS_REGION
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: AWS_REGION
+        - name: SPARK_MODE
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: SPARK_MODE_MASTER 
+        - name: SPARK_WORKER_CORES
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: SPARK_WORKER_CORES 
+        - name: SPARK_WORKER_MEMORY
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: SPARK_WORKER_MEMORY
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: spark-secret
+              key: AWS_SECRET_ACCESS_KEY
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-master-service
+spec:
+  selector:
+    app: spark-master
+  ports:
+    - protocol: TCP
+      port: 7077
+      targetPort: 7077
+
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-worker-deployment
+  labels:
+    app: spark-worker
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: spark-worker
+  template:
+    metadata:
+      labels:
+        app: spark-worker
+    spec:
+      containers:
+      - name: spark-worker
+        image: tabulario/spark-iceberg
+        ports:
+        - containerPort: 7077
+        env:
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: AWS_ACCESS_KEY_ID
+        - name: AWS_REGION
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: AWS_REGION
+        - name: SPARK_MODE
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: SPARK_MODE_WORKER 
+        - name: SPARK_MASTER_URL
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: SPARK_MASTER_URL 
+        - name: SPARK_WORKER_CORES
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: SPARK_WORKER_CORES 
+        - name: SPARK_WORKER_MEMORY
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: SPARK_WORKER_MEMORY
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: spark-secret
+              key: AWS_SECRET_ACCESS_KEY
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-worker-service
+spec:
+  selector:
+    app: spark-worker
+  ports:
+    - protocol: TCP
+      port: 7077
+      targetPort: 7077
