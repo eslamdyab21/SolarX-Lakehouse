@@ -19,10 +19,17 @@ spec:
         image: tabulario/spark-iceberg
         ports:
         - containerPort: 7077
+        - containerPort: 8080
+        - containerPort: 10000
+        - containerPort: 10001
+        - containerPort: 4040
+        - containerPort: 4041
 
         volumeMounts:
         - mountPath: /home/iceberg/warehouse
           name: lakehouse-spark
+        - mountPath: /home/iceberg/notebooks/notebooks
+          name: notebooks-spark
         - mountPath: /home/iceberg/etl_scripts
           name: spark-etls
 
@@ -42,29 +49,24 @@ spec:
             configMapKeyRef:
               name: spark-config
               key: SPARK_MODE_MASTER 
-        - name: SPARK_WORKER_CORES
-          valueFrom: 
-            configMapKeyRef:
-              name: spark-config
-              key: SPARK_WORKER_CORES 
-        - name: SPARK_WORKER_MEMORY
-          valueFrom: 
-            configMapKeyRef:
-              name: spark-config
-              key: SPARK_WORKER_MEMORY
         - name: AWS_SECRET_ACCESS_KEY
           valueFrom:
             secretKeyRef:
               name: spark-secret
               key: AWS_SECRET_ACCESS_KEY
+              
       volumes:
       - name: lakehouse-spark
         hostPath:
-          path: /tmp/lakehouse/spark
+          path: /tmp/solarx/lakehouse/spark
+          type: Directory
+      - name: notebooks-spark
+        hostPath:
+          path: /tmp/solarx/notebooks
           type: Directory
       - name: spark-etls
         hostPath:
-          path: /tmp/spark_etls
+          path: /tmp/solarx/spark_etls
           type: Directory
 ---
 apiVersion: v1
@@ -75,9 +77,50 @@ spec:
   selector:
     app: spark-master
   ports:
-    - protocol: TCP
+    - name: p1
+      protocol: TCP
       port: 7077
       targetPort: 7077
+    - name: p2
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+    - name: p3
+      protocol: TCP
+      port: 10000
+      targetPort: 10000
+    - name: p4
+      protocol: TCP
+      port: 10001
+      targetPort: 10001
+    - name: p5
+      protocol: TCP
+      port: 4040
+      targetPort: 4040
+    - name: p6
+      protocol: TCP
+      port: 4041
+      targetPort: 4041
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-master-out-service
+spec:
+  type: NodePort
+  selector:
+    app: spark-master
+  ports:
+    - name: p1
+      protocol: TCP
+      port: 8888
+      targetPort: 8888
+      nodePort: 30001
+    - name: p2
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+      nodePort: 30002
 
 
 ---
@@ -151,15 +194,15 @@ spec:
       volumes:
       - name: lakehouse-spark
         hostPath:
-          path: /tmp/lakehouse/spark
+          path: /tmp/solarx/lakehouse/spark
           type: Directory
       - name: spark-etls
         hostPath:
-          path: /tmp/spark_etls
+          path: /tmp/solarx/spark_etls
           type: Directory
       - name: spark-worker-bash
         hostPath:
-          path: /tmp/spark_workers.sh
+          path: /tmp/solarx/spark_workers.sh
           type: File
 ---
 apiVersion: v1
@@ -173,3 +216,196 @@ spec:
     - protocol: TCP
       port: 7077
       targetPort: 7077
+
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rest-deployment
+  labels:
+    app: rest
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rest
+  template:
+    metadata:
+      labels:
+        app: rest
+    spec:
+      containers:
+      - name: rest
+        image: apache/iceberg-rest-fixture
+        ports:
+        - containerPort: 8181
+
+        env:
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: AWS_ACCESS_KEY_ID
+        - name: AWS_REGION
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: AWS_REGION
+        - name: CATALOG_WAREHOUSE
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: CATALOG_WAREHOUSE 
+        - name: CATALOG_IO__IMPL
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: CATALOG_IO__IMPL 
+        - name: CATALOG_S3_ENDPOINT
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: CATALOG_S3_ENDPOINT 
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: spark-secret
+              key: AWS_SECRET_ACCESS_KEY
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rest-service
+spec:
+  selector:
+    app: rest
+  ports:
+    - protocol: TCP
+      port: 8181
+      targetPort: 8181
+
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio-deployment
+  labels:
+    app: minio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+      - name: minio
+        image: minio/minio
+        ports:
+        - containerPort: 9000
+        - containerPort: 9001
+
+        env:
+        - name: MINIO_ROOT_USER
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: MINIO_ROOT_USER
+        - name: MINIO_DOMAIN
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: MINIO_DOMAIN
+        - name: MINIO_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: spark-secret
+              key: MINIO_ROOT_PASSWORD
+
+        command: ["minio"]
+        args: ["server", "/data", "--console-address", ":9001"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio-service
+spec:
+  selector:
+    app: minio
+  ports:
+    - name: p1
+      protocol: TCP
+      port: 9000
+      targetPort: 9000
+    - name: p2
+      protocol: TCP
+      port: 9001
+      targetPort: 9001
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio-out-service
+spec:
+  type: NodePort
+  selector:
+    app: minio
+  ports:
+    - name: p1
+      protocol: TCP
+      port: 9001
+      targetPort: 9001
+      nodePort: 30004
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mc-deployment
+  labels:
+    app: mc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mc
+  template:
+    metadata:
+      labels:
+        app: mc
+    spec:
+      containers:
+      - name: mc
+        image: minio/mc
+
+        env:
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: AWS_ACCESS_KEY_ID
+        - name: AWS_REGION
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: AWS_REGION
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: spark-secret
+              key: AWS_SECRET_ACCESS_KEY
+
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          until (/usr/bin/mc config host add minio http://minio-service:9000 admin password) do
+            echo '...waiting...' && sleep 1;
+          done;
+          /usr/bin/mc mb --ignore-existing minio/warehouse;
+          /usr/bin/mc policy set public minio/warehouse;
+          tail -f /dev/null;

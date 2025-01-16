@@ -7,6 +7,11 @@ data:
   AWS_REGION: us-east-1
   SPARK_MODE_MASTER: master
   SPARK_MODE_WORKER: worker
-  SPARK_MASTER_URL: spark://spark-master:7077
+  SPARK_MASTER_URL: spark://spark-master-service:7077
   SPARK_WORKER_CORES: '2'
   SPARK_WORKER_MEMORY: 1G
+  CATALOG_WAREHOUSE: s3://warehouse/
+  CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
+  CATALOG_S3_ENDPOINT: http://minio-service:9000
+  MINIO_ROOT_USER: admin
+  MINIO_DOMAIN: minio-service
