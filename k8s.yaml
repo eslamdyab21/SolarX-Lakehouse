@@ -160,7 +160,7 @@ spec:
       - name: spark-worker-bash
         hostPath:
           path: /tmp/spark_workers.sh
-          type: Directory
+          type: File
 ---
 apiVersion: v1
 kind: Service
