@@ -19,6 +19,13 @@ spec:
         image: tabulario/spark-iceberg
         ports:
         - containerPort: 7077
+
+        volumeMounts:
+        - mountPath: /home/iceberg/warehouse
+          name: lakehouse-spark
+        - mountPath: /home/iceberg/etl_scripts
+          name: spark-etls
+
         env:
         - name: AWS_ACCESS_KEY_ID
           valueFrom: 
@@ -50,6 +57,15 @@ spec:
             secretKeyRef:
               name: spark-secret
               key: AWS_SECRET_ACCESS_KEY
+      volumes:
+      - name: lakehouse-spark
+        hostPath:
+          path: /tmp/lakehouse/spark
+          type: Directory
+      - name: spark-etls
+        hostPath:
+          path: /tmp/spark_etls
+          type: Directory
 ---
 apiVersion: v1
 kind: Service
@@ -86,6 +102,15 @@ spec:
         image: tabulario/spark-iceberg
         ports:
         - containerPort: 7077
+
+        volumeMounts:
+        - mountPath: /home/iceberg/warehouse
+          name: lakehouse-spark
+        - mountPath: /home/iceberg/etl_scripts
+          name: spark-etls
+        - mountPath: /opt/spark/spark_workers.sh
+          name: spark-worker-bash
+
         env:
         - name: AWS_ACCESS_KEY_ID
           valueFrom: 
@@ -122,6 +147,20 @@ spec:
             secretKeyRef:
               name: spark-secret
               key: AWS_SECRET_ACCESS_KEY
+
+      volumes:
+      - name: lakehouse-spark
+        hostPath:
+          path: /tmp/lakehouse/spark
+          type: Directory
+      - name: spark-etls
+        hostPath:
+          path: /tmp/spark_etls
+          type: Directory
+      - name: spark-worker-bash
+        hostPath:
+          path: /tmp/spark_workers.sh
+          type: Directory
 ---
 apiVersion: v1
 kind: Service
