@@ -15,3 +15,5 @@ data:
   CATALOG_S3_ENDPOINT: http://minio-service:9000
   MINIO_ROOT_USER: admin
   MINIO_DOMAIN: minio-service
+  REST_API_URL: http://rest-service:8181
+  MINIO_ENDPOINT: http://minio-service:9000

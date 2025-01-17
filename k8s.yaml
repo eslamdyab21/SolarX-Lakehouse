@@ -49,11 +49,32 @@ spec:
             configMapKeyRef:
               name: spark-config
               key: SPARK_MODE_MASTER 
+        - name: REST_API_URL
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: REST_API_URL 
+        - name: MINIO_ENDPOINT
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: MINIO_ENDPOINT 
+        - name: MINIO_ACCESS_KEY
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: MINIO_ROOT_USER 
         - name: AWS_SECRET_ACCESS_KEY
           valueFrom:
             secretKeyRef:
               name: spark-secret
               key: AWS_SECRET_ACCESS_KEY
+        - name: MINIO_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: spark-secret
+              key: MINIO_ROOT_PASSWORD
+        
               
       volumes:
       - name: lakehouse-spark
@@ -185,11 +206,31 @@ spec:
             configMapKeyRef:
               name: spark-config
               key: SPARK_WORKER_MEMORY
+        - name: REST_API_URL
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: REST_API_URL 
+        - name: MINIO_ENDPOINT
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: MINIO_ENDPOINT 
+        - name: MINIO_ACCESS_KEY
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: MINIO_ROOT_USER 
         - name: AWS_SECRET_ACCESS_KEY
           valueFrom:
             secretKeyRef:
               name: spark-secret
               key: AWS_SECRET_ACCESS_KEY
+        - name: MINIO_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: spark-secret
+              key: MINIO_ROOT_PASSWORD
 
       volumes:
       - name: lakehouse-spark
@@ -266,7 +307,12 @@ spec:
           valueFrom: 
             configMapKeyRef:
               name: spark-config
-              key: CATALOG_S3_ENDPOINT 
+              key: CATALOG_S3_ENDPOINT
+        - name: MINIO_ENDPOINT
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: MINIO_ENDPOINT 
         - name: AWS_SECRET_ACCESS_KEY
           valueFrom:
             secretKeyRef:
