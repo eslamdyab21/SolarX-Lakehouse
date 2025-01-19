@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: spark-master-deployment
+  namespace: lakehouse
   labels:
     app: spark-master
 spec:
@@ -20,10 +21,22 @@ spec:
         ports:
         - containerPort: 7077
         - containerPort: 8080
+        - containerPort: 8081
         - containerPort: 10000
         - containerPort: 10001
         - containerPort: 4040
         - containerPort: 4041
+        - containerPort: 5000
+        - containerPort: 5001
+        - containerPort: 5002
+        - containerPort: 5003
+        - containerPort: 5004
+        - containerPort: 5005
+        - containerPort: 5006
+        - containerPort: 5007
+        - containerPort: 5008
+        - containerPort: 5009
+        - containerPort: 5010
 
         volumeMounts:
         - mountPath: /home/iceberg/warehouse
@@ -94,6 +107,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: spark-master-service
+  namespace: lakehouse
 spec:
   selector:
     app: spark-master
@@ -106,6 +120,10 @@ spec:
       protocol: TCP
       port: 8080
       targetPort: 8080
+    - name: p22
+      protocol: TCP
+      port: 8081
+      targetPort: 8081
     - name: p3
       protocol: TCP
       port: 10000
@@ -122,11 +140,56 @@ spec:
       protocol: TCP
       port: 4041
       targetPort: 4041
+    - name: p10
+      protocol: TCP
+      port: 5000
+      targetPort: 5000
+    - name: p11
+      protocol: TCP
+      port: 5001
+      targetPort: 5001
+    - name: p12
+      protocol: TCP
+      port: 5002
+      targetPort: 5002
+    - name: p13
+      protocol: TCP
+      port: 5003
+      targetPort: 5003
+    - name: p14
+      protocol: TCP
+      port: 5004
+      targetPort: 5004
+    - name: p15
+      protocol: TCP
+      port: 5005
+      targetPort: 5005
+    - name: p16
+      protocol: TCP
+      port: 5006
+      targetPort: 5006
+    - name: p17
+      protocol: TCP
+      port: 5007
+      targetPort: 5007
+    - name: p18
+      protocol: TCP
+      port: 5008
+      targetPort: 5008
+    - name: p19
+      protocol: TCP
+      port: 5009
+      targetPort: 5009
+    - name: p20
+      protocol: TCP
+      port: 5010
+      targetPort: 5010
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: spark-master-out-service
+  namespace: lakehouse
 spec:
   type: NodePort
   selector:
@@ -149,10 +212,11 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: spark-worker-deployment
+  namespace: lakehouse
   labels:
     app: spark-worker
 spec:
-  replicas: 3
+  replicas: 1
   selector:
     matchLabels:
       app: spark-worker
@@ -165,7 +229,20 @@ spec:
       - name: spark-worker
         image: tabulario/spark-iceberg
         ports:
-        - containerPort: 7077
+        - containerPort: 7078
+        - containerPort: 8080
+        - containerPort: 8081
+        - containerPort: 5000
+        - containerPort: 5001
+        - containerPort: 5002
+        - containerPort: 5003
+        - containerPort: 5004
+        - containerPort: 5005
+        - containerPort: 5006
+        - containerPort: 5007
+        - containerPort: 5008
+        - containerPort: 5009
+        - containerPort: 5010
 
         volumeMounts:
         - mountPath: /home/iceberg/warehouse
@@ -250,20 +327,94 @@ apiVersion: v1
 kind: Service
 metadata:
   name: spark-worker-service
+  namespace: lakehouse
 spec:
   selector:
     app: spark-worker
   ports:
-    - protocol: TCP
-      port: 7077
-      targetPort: 7077
-
-
+    - name: p1
+      protocol: TCP
+      port: 7078
+      targetPort: 7078
+    - name: p2
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+    - name: p3
+      protocol: TCP
+      port: 8081
+      targetPort: 8081
+    - name: p10
+      protocol: TCP
+      port: 5000
+      targetPort: 5000
+    - name: p11
+      protocol: TCP
+      port: 5001
+      targetPort: 5001
+    - name: p12
+      protocol: TCP
+      port: 5002
+      targetPort: 5002
+    - name: p13
+      protocol: TCP
+      port: 5003
+      targetPort: 5003
+    - name: p14
+      protocol: TCP
+      port: 5004
+      targetPort: 5004
+    - name: p15
+      protocol: TCP
+      port: 5005
+      targetPort: 5005
+    - name: p16
+      protocol: TCP
+      port: 5006
+      targetPort: 5006
+    - name: p17
+      protocol: TCP
+      port: 5007
+      targetPort: 5007
+    - name: p18
+      protocol: TCP
+      port: 5008
+      targetPort: 5008
+    - name: p19
+      protocol: TCP
+      port: 5009
+      targetPort: 5009
+    - name: p20
+      protocol: TCP
+      port: 5010
+      targetPort: 5010
+---
+  apiVersion: v1
+  kind: Service
+  metadata:
+    name: spark-worker-out-service
+    namespace: lakehouse
+  spec:
+    type: NodePort
+    selector:
+      app: spark-worker
+    ports:
+      - name: p1
+        protocol: TCP
+        port: 8888
+        targetPort: 8888
+        nodePort: 30010
+      - name: p2
+        protocol: TCP
+        port: 8081
+        targetPort: 8081
+        nodePort: 30011
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: rest-deployment
+  namespace: lakehouse
   labels:
     app: rest
 spec:
@@ -313,6 +464,11 @@ spec:
             configMapKeyRef:
               name: spark-config
               key: MINIO_ENDPOINT 
+        - name: CATALOG_S3_PATH__STYLE__ACCESS
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: CATALOG_S3_PATH__STYLE__ACCESS 
         - name: AWS_SECRET_ACCESS_KEY
           valueFrom:
             secretKeyRef:
@@ -322,7 +478,8 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: rest-service
+  name: rest
+  namespace: lakehouse
 spec:
   selector:
     app: rest
@@ -337,6 +494,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: minio-deployment
+  namespace: lakehouse
   labels:
     app: minio
 spec:
@@ -379,7 +537,8 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: minio-service
+  name: minio
+  namespace: lakehouse
 spec:
   selector:
     app: minio
@@ -397,6 +556,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: minio-out-service
+  namespace: lakehouse
 spec:
   type: NodePort
   selector:
@@ -413,6 +573,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mc-deployment
+  namespace: lakehouse
   labels:
     app: mc
 spec:
@@ -449,7 +610,7 @@ spec:
         command: ["/bin/sh", "-c"]
         args:
         - |
-          until (/usr/bin/mc config host add minio http://minio-service:9000 admin password) do
+          until (/usr/bin/mc config host add minio http://minio:9000 admin password) do
             echo '...waiting...' && sleep 1;
           done;
           /usr/bin/mc mb --ignore-existing minio/warehouse;
