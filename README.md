@@ -89,6 +89,7 @@ A sample of the resampled `2013-01-01.csv` data and files sizes
 <br/>
 
 # Cluster Configuration Setup
+## Docker Setup
 In the docker compose file, there are 4 workers and one master, `spark-worker-1` to `spark-worker-4`. We can specify the default memory and cores in the environment variables below.
 
 <br/>
@@ -155,6 +156,106 @@ We can see that all worker is now recognized by the master.
 <br/>
 
 Note that we could've just run the script as a command in docker compose file, but some reason it doesn't work.
+
+<br/>
+<br/>
+
+
+## Kubernetes Setup
+If setting up the environment locally, make sure you have `minikube` installed, then specify how much resources you will give it and  `SolarX-Lakehouse-TEMP` directory will have 
+```bash
+SolarX-Lakehouse-TEMP$ ls
+lakehouse  notebooks  spark_etls  spark_workers.sh
+```
+or you can just copy them with `minikube cp` or `scp`
+
+```bash
+minikube start --vm-driver=kvm2 --cpus=6 --memory=8192 --mount --mount-string=/home/dyab/Documents/projects/SolarX-Lakehouse-TEMP:/tmp/solarx/
+```
+
+<br/>
+
+### Using host installed docker images
+If we care about using already downloaded docker images in host machine
+- With small size images
+```bash
+minikube image load minio/mc
+minikube image load minio/minio
+minikube image load apache/iceberg-rest-fixture
+```
+- With big size images
+```bash
+docker save -o spark-iceberg.tar tabulario/spark-iceberg
+minikube cp ./spark-iceberg.tar /tmp/solarx/spark-iceberg.tar
+```
+
+```bash
+minikube ssh
+docker load -i /tmp/solarx/spark-iceberg.tar
+```
+
+Then we create a namespace `lakehouse` for our cluster 
+```bash
+kubectl create namespace lakehouse
+kubectl config set-context --current --namespace=lakehouse
+kubectl apply -f k8s-configMaps.yaml
+kubectl apply -f k8s-secrets.yaml
+kubectl apply -f k8s.yaml
+```
+
+```bash
+SolarX-Lakehouse$ kubectl get pods
+NAME                                       READY   STATUS    RESTARTS   AGE
+mc-deployment-59d667df79-9kpqs             1/1     Running   0          24s
+minio-deployment-754449f485-k65n8          1/1     Running   0          24s
+rest-deployment-6b4f5566fb-jtt5b           1/1     Running   0          24s
+spark-master-deployment-6fcd6d868d-4777s   1/1     Running   0          24s
+spark-worker-deployment-54cf5f9898-jq285   1/1     Running   0          24s
+spark-worker-deployment-54cf5f9898-p752q   1/1     Running   0          24s
+```
+
+### A lock into `configMaps` and `secrets`
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+	name: spark-config
+data:
+	AWS_ACCESS_KEY_ID: admin
+	AWS_REGION: us-east-1
+	SPARK_MODE_MASTER: master
+	SPARK_MODE_WORKER: worker
+	SPARK_MASTER_URL: spark://spark-master-service:7077
+	SPARK_WORKER_CORES: '2'
+	SPARK_WORKER_MEMORY: 1G
+	CATALOG_WAREHOUSE: s3://warehouse/
+	CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
+	CATALOG_S3_ENDPOINT: http://minio:9000
+	CATALOG_S3_PATH__STYLE__ACCESS: 'true'
+	MINIO_ROOT_USER: admin
+	MINIO_DOMAIN: minio
+	REST_API_URL: http://rest:8181
+	MINIO_ENDPOINT: http://minio:9000
+```
+
+```yml
+apiVersion: v1
+kind: Secret
+metadata:
+	name: spark-secret
+type: Opaque
+data:
+	AWS_SECRET_ACCESS_KEY: cGFzc3dvcmQ=
+	MINIO_ROOT_PASSWORD: cGFzc3dvcmQ=
+```
+Where `AWS_SECRET_ACCESS_KEY` and `MINIO_ROOT_PASSWORD` are encoded as `password`, of course in a production setting the `secrets` should not be pushed whatsoever.
+
+- We can specify the number of replicas for `spark-worker-deployment` in the `k8s.yaml`, it's set to be 2 by default.
+
+- Connect workers to master, make sure to change `spark-master` to `spark-master-service` in the `spark_workers.sh` bash script for this setup with k8s.
+```bash
+kubectl exec -it <pod-name> -- /bin/bash -c "chmod +x /opt/spark/spark_workers.sh && /opt/spark/spark_workers.sh"
+```
 
 <br/>
 <br/>
@@ -873,6 +974,7 @@ ON target.solar_panel_id = source.panel_id AND target.date_key = source.truncate
 <br/>
 
 # Submitting ETL Python Scripts to Spark Cluster
+## With Docker
 While `jupyter notebooks` are great for development, testing and visualization but they are not sutiple for production environment, that's why in this section we will script everything in normal `.py` files.
 
 <br/>
@@ -887,7 +989,7 @@ Inside the `/opt/spark` directory run the following with desired parameters
 
 - Create raw schema
 ```bash
-./bin/spark-submit --master spark://5846f3795ae1:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/create_raw_schema.py
+./bin/spark-submit --master spark://spark-master:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/create_raw_schema.py
 ```
 
 - Create warehouse schema
@@ -916,7 +1018,7 @@ Inside the `/opt/spark` directory run the following with desired parameters
 <br/>
 <br/>
 
-# Submitting ETL Python Scripts to Spark Cluster With Airflow
+### Submitting ETL Python Scripts to Spark Cluster With Airflow
 Inside the `airflow` directory there is a `docker-compose` file and `Dockerfile` to setup the airflow environment with docker and we are using the same spark network.
 
 We use a lightweight airflow setup here, the docker related files are manly inspired from this repo `https://github.com/ntd284/personal_install_airflow_docker/tree/main/airflow_lite`
@@ -934,3 +1036,53 @@ docker exec -it spark-master /bin/bash -c "echo 'PermitRootLogin yes' >> /etc/ss
 ```
 
 ![](images/airflow_dag.png)
+
+
+<br/>
+<br/>
+
+## With Kubernetes 
+- Enter the master container
+```bash
+kubectl exec -it <pod-name> -- bash
+```
+
+We need to add a couple more configuration settings here duo to the fact that the spark master and workers containers are not in the same pod, they are in different pods and in k8s we need explicitly specify and open ports for communication. 
+```bash
+--conf spark.driver.host=spark-master-service 
+--conf spark.driver.bindAddress=0.0.0.0
+--conf spark.driver.port=5000 
+--conf spark.broadcast.port=5001 
+--conf spark.replClassServer.port=5002 
+--conf spark.blockManager.port=5003
+```
+so that workers can resolve the master service name correctly instead of accessing the container name, which won't work here in k8s setup.
+
+- Create raw schema
+```bash
+./bin/spark-submit --master spark://spark-master-service:7077 --conf spark.driver.host=spark-master-service --conf spark.driver.bindAddress=0.0.0.0 --conf spark.driver.port=5000 --conf spark.broadcast.port=5001 --conf spark.replClassServer.port=5002 --conf spark.blockManager.port=5003 --num-executors 4 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/create_raw_schema.py
+```
+
+
+- Create warehouse schema
+```bash
+./bin/spark-submit --master spark://spark-master-service:7077 --conf spark.driver.host=spark-master-service --conf spark.driver.bindAddress=0.0.0.0 --conf spark.driver.port=5000 --conf spark.broadcast.port=5001 --conf spark.replClassServer.port=5002 --conf spark.blockManager.port=5003 --num-executors 4 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/create_wh_schema.py
+```
+
+
+- Rum raw home power readings etl, it takes an extra parameter, the date in this case `2013-01-01`.  Note that the corresponding csv file `2013-01-01.csv` should be in the `lakehouse/spark/home_power_usage_history/2013-01-01.csv` directory
+```bash
+./bin/spark-submit --master spark://spark-master-service:7077 --conf spark.driver.host=spark-master-service --conf spark.driver.bindAddress=0.0.0.0 --conf spark.driver.port=5000 --conf spark.broadcast.port=5001 --conf spark.replClassServer.port=5002 --conf spark.blockManager.port=5003 --num-executors 4 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/raw_home_power_readings_etl.py 2013-01-01
+```
+
+
+- Run raw solar panel etl
+```bash
+./bin/spark-submit --master spark://spark-master-service:7077 --conf spark.driver.host=spark-master-service --conf spark.driver.bindAddress=0.0.0.0 --conf spark.driver.port=5000 --conf spark.broadcast.port=5001 --conf spark.replClassServer.port=5002 --conf spark.blockManager.port=5003 --num-executors 4 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/raw_solar_panel_power_etl.py
+```
+
+
+- Rum raw solar panel power readings etl, it takes an extra parameter, the date in this case `2013-01-01`.  Note that the corresponding csv file `2013-01-01.csv` should be in the `lakehouse/spark/weather_history_splitted_resampled/2013-01-01.csv` directory
+```bash
+./bin/spark-submit --master spark://spark-master-service:7077 --conf spark.driver.host=spark-master-service --conf spark.driver.bindAddress=0.0.0.0 --conf spark.driver.port=5000 --conf spark.broadcast.port=5001 --conf spark.replClassServer.port=5002 --conf spark.blockManager.port=5003 --num-executors 4 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/raw_solar_panel_power_readings_etl.py 2013-01-01
+```
