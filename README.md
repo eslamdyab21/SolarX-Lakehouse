@@ -215,7 +215,7 @@ spark-worker-deployment-54cf5f9898-p752q   1/1     Running   0          24s
 ```
 
 ### A lock into `configMaps` and `secrets`
-```yaml
+```python
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -238,7 +238,7 @@ data:
 	MINIO_ENDPOINT: http://minio:9000
 ```
 
-```yml
+```python
 apiVersion: v1
 kind: Secret
 metadata:
