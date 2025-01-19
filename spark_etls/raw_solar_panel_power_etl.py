@@ -26,7 +26,7 @@ def main():
         WHEN MATCHED THEN UPDATE SET
             target.capacity_kwh = source.capacity_kwh,
             target.intensity_power_rating = source.intensity_power_rating,
-            target.temperature_power_rating = source.temperature_power_rating,
+            target.temperature_power_rating = source.temperature_power_rating
         WHEN NOT MATCHED THEN 
             INSERT (id, name, capacity_kwh, intensity_power_rating, temperature_power_rating)
             VALUES (source.id, source.name, source.capacity_kwh, source.intensity_power_rating, source.temperature_power_rating)
