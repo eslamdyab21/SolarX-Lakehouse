@@ -22,6 +22,7 @@ spec:
       containers:
       - name: spark-master
         image: tabulario/spark-iceberg
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 7077
         - containerPort: 8080
@@ -218,6 +219,7 @@ spec:
       containers:
       - name: spark-worker
         image: tabulario/spark-iceberg
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 7078
         - containerPort: 8080
@@ -407,6 +409,7 @@ spec:
       containers:
       - name: rest
         image: apache/iceberg-rest-fixture
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8181
 
@@ -487,6 +490,7 @@ spec:
       containers:
       - name: minio
         image: minio/minio
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 9000
         - containerPort: 9001
@@ -554,6 +558,7 @@ spec:
       containers:
       - name: mc
         image: minio/mc
+        imagePullPolicy: IfNotPresent
 
         env:
         - name: AWS_ACCESS_KEY_ID
@@ -566,6 +571,11 @@ spec:
             configMapKeyRef:
               name: spark-config
               key: AWS_REGION
+        - name: MINIO_ENDPOINT
+          valueFrom: 
+            configMapKeyRef:
+              name: spark-config
+              key: MINIO_ENDPOINT
         - name: AWS_SECRET_ACCESS_KEY
           valueFrom:
             secretKeyRef:
