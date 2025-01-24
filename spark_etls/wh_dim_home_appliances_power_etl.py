@@ -59,7 +59,7 @@ def main():
         WHEN NOT MATCHED THEN INSERT *
     """)
 
-    logging.info(f"""wh-home-power-power-etl -> Load dim_home_appliances successfully into iceberg""")
+    logging.info(f"""wh-dim-home-appliances-power-etl -> Load dim_home_appliances successfully into iceberg""")
 
 
     spark.stop()
