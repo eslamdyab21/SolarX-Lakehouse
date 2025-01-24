@@ -29,7 +29,7 @@ def main():
     spark = (
         SparkSession
         .builder
-        .appName("create raw solar panel power")
+        .appName("create wh home appliances power")
         .getOrCreate()
     )
 
