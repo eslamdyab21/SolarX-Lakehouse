@@ -1,18 +1,13 @@
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
+from pyspark.sql.types import StructType, StructField, TimestampType, FloatType
 import logging
 import sys
 
 
-def main(date):
-    spark = (
-        SparkSession
-        .builder
-        .appName("create raw home power readings")
-        .getOrCreate()
-    )
 
-    # Read raw data
+def read_internal_data(spark, date):
+    # Read internal csv raw data
     _schema = "timestamp timestamp, min_consumption_wh float, max_consumption_wh float, avg_consumption_wh float"
 
     home_power_usage_df = spark.read.format("csv").schema(_schema).option("header", True)\
@@ -23,7 +18,31 @@ def main(date):
     spark.conf.set("spark.sql.shuffle.partitions", 92)
     logging.info(f"""raw-home-power-etl -> Read home_power_usage_history successfully as dataframe""")
 
+    return home_power_usage_df
 
+
+
+def read_solarx_kafka_logged_data(spark, date):
+    # Read solarx kafka log raw data
+    _schema = StructType([
+        StructField("timestamp", TimestampType(), True),
+        StructField("current_consumption_w", FloatType(), True),
+        StructField("consumption_accumulated_w", FloatType(), True),
+    ])
+
+    home_power_usage_df = spark.read.format("json").schema(_schema)\
+                    .load(f"/home/iceberg/warehouse/solarx_kafka_log_data/kafka_log_home_energy_consumption_{date}.log")\
+                    .withColumn("15_minutes_interval", F.floor((F.hour(F.col("timestamp"))*60 + F.minute(F.col("timestamp")) - 60) / 15))                                                                                                 
+
+    spark.conf.set("spark.sql.shuffle.partitions", 92)
+    logging.info(f"""raw-home-power-etl -> Read home_power_usage_history successfully as dataframe""")
+
+    return home_power_usage_df
+
+
+
+def load_2_iceberg(home_power_usage_df):
+    
     # Load data into raw home_power_readings iceberg table
     home_power_usage_df.createOrReplaceTempView("temp_view")
 
@@ -39,10 +58,31 @@ def main(date):
 
     logging.info(f"""raw-home-power-etl -> Load into home_power_readings iceberg table successfully""")
 
-    spark.stop()
     
 
 if __name__ == "__main__":
-    date = sys.argv[1]
     logging.basicConfig(level = "INFO")
-    main(date)
+
+    spark = (
+        SparkSession
+        .builder
+        .appName("create raw home power readings")
+        .getOrCreate()
+    )
+
+    source_data_type = sys.argv[1]
+    date = sys.argv[2]
+
+    if source_data_type == "solarx-kafka":
+        home_power_usage_df = read_solarx_kafka_logged_data(spark, date)
+        load_2_iceberg(home_power_usage_df)
+
+    elif source_data_type == "internal":
+        home_power_usage_df = read_internal_data(spark, date)
+        load_2_iceberg(home_power_usage_df)
+
+    else:
+        logging.info(f"""raw-home-power-etl -> Please enter either solarx-kafka or internal as data_type""")
+        print("Please choose either solarx-kafka or internal as data_typ")
+
+    spark.stop()
