@@ -1,15 +1,51 @@
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
+from pyspark.sql.types import StructType, StructField, TimestampType, FloatType
 import logging
 import sys
 
 
+
+def read_solarx_kafka_logged_data(spark, date):
+    # Read solarx kafka log raw data
+    _schema = StructType([
+        StructField("timestamp", TimestampType(), True),
+        StructField("current_consumption_w", FloatType(), True),
+        StructField("consumption_accumulated_w", FloatType(), True),
+    ])
+
+    solar_panel_readings_df = spark.read.format("json").schema(_schema)\
+                    .load(f"/home/iceberg/warehouse/solarx_kafka_log_data/kafka_log_solar_energy_data_{date}.log")\
+                    .withColumn("15_min_interval", F.floor((F.hour(F.col("timestamp"))*60 + F.minute(F.col("timestamp")) - 60) / 15))                                                                                                 
+
+
+    return solar_panel_readings_df
+
+
+
+def read_internal_data(spark, date):
+    # Read internal raw data
+    _schema = "timestamp timestamp, solar_intensity float, temp float"
+
+    weather_df = spark.read.format("csv").schema(_schema).option("header", True)\
+                    .load(f"""/home/iceberg/warehouse/weather_history_splitted_resampled/{date}.csv""")\
+                    .withColumn("15_min_interval", F.floor((F.hour(F.col("timestamp"))*60 + F.minute(F.col("timestamp")) - 60) / 15))                                                                                                 
+
+
+    spark.conf.set("spark.sql.shuffle.partitions", 92)
+    logging.info(f"""raw-solar-panel-power-readings-etl -> Read weather_history_splitted_resampled successfully as dataframe""")
+
+
+    return weather_df
+
+
+
 def calc_solar_readings(spark, panel_id, weather_df):
     # Loading solar_panel table
-    solar_panele_df = spark.read.format("iceberg").load("SolarX_Raw_Transactions.solar_panel")
+    solar_panel_df = spark.read.format("iceberg").load("SolarX_Raw_Transactions.solar_panel")
 
-    # Quering panel power ratings
-    solar_panel_rating = solar_panele_df.filter(solar_panele_df.id == panel_id) \
+    # Querying panel power ratings
+    solar_panel_rating = solar_panel_df.filter(solar_panel_df.id == panel_id) \
                                     .select("capacity_kwh", "intensity_power_rating", "temperature_power_rating") \
                                     .first()
 
@@ -33,7 +69,7 @@ def calc_solar_readings(spark, panel_id, weather_df):
 
 
 
-def insert_data2iceberg(spark, solar_panel_readings_df, panel_id):
+def load_2_iceberg(spark, solar_panel_readings_df, panel_id):
     solar_panel_readings_df.createOrReplaceTempView("temp_view")
     spark.sql(f"""
         INSERT INTO SolarX_Raw_Transactions.solar_panel_readings (timestamp, 15_minutes_interval, panel_id, generation_power_wh)
@@ -48,8 +84,11 @@ def insert_data2iceberg(spark, solar_panel_readings_df, panel_id):
     logging.info(f"""raw-solar-panel-power-readings-etl -> panel: {panel_id} -> Load into solar_panel_readings iceberg table successfully""")
 
 
+    
 
-def main(date):
+if __name__ == "__main__":
+    logging.basicConfig(level = "INFO")
+
     spark = (
         SparkSession
         .builder
@@ -57,34 +96,33 @@ def main(date):
         .getOrCreate()
     )
 
-    # Read raw data
-    _schema = "timestamp timestamp, solar_intensity float, temp float"
+    source_data_type = sys.argv[1]
+    date = sys.argv[2]
+    
+    if source_data_type == "solarx-kafka":
+        solar_panel_readings_df = read_solarx_kafka_logged_data(spark, date)
 
-    weather_df = spark.read.format("csv").schema(_schema).option("header", True)\
-                    .load(f"""/home/iceberg/warehouse/weather_history_splitted_resampled/{date}.csv""")\
-                    .withColumn("15_min_interval", F.floor((F.hour(F.col("timestamp"))*60 + F.minute(F.col("timestamp")) - 60) / 15))                                                                                                 
+        panel_id = 4
+        load_2_iceberg(spark, solar_panel_readings_df, panel_id)
 
+    elif source_data_type == "internal":
+        weather_df = read_internal_data(spark, date)
 
-    spark.conf.set("spark.sql.shuffle.partitions", 92)
-    logging.info(f"""raw-solar-panel-power-readings-etl -> Read weather_history_splitted_resampled successfully as dataframe""")
+        panel_id = 1
+        solar_panel_readings_df = calc_solar_readings(spark, panel_id, weather_df)
+        load_2_iceberg(spark, solar_panel_readings_df, panel_id)
 
+        panel_id = 2
+        solar_panel_readings_df = calc_solar_readings(spark, panel_id, weather_df)
+        load_2_iceberg(spark, solar_panel_readings_df, panel_id)
 
-    panel_id = 1
-    solar_panel_readings_df = calc_solar_readings(spark, panel_id, weather_df)
-    insert_data2iceberg(spark, solar_panel_readings_df, panel_id)
+        panel_id = 3
+        solar_panel_readings_df = calc_solar_readings(spark, panel_id, weather_df)
+        load_2_iceberg(spark, solar_panel_readings_df, panel_id)
 
-    panel_id = 2
-    solar_panel_readings_df = calc_solar_readings(spark, panel_id, weather_df)
-    insert_data2iceberg(spark, solar_panel_readings_df, panel_id)
+    else:
+        logging.info(f"""raw-solar-panel-power-readings-etl -> Please enter either solarx-kafka or internal as data_type""")
+        print("Please choose either solarx-kafka or internal as data_typ")
 
-    panel_id = 3
-    solar_panel_readings_df = calc_solar_readings(spark, panel_id, weather_df)
-    insert_data2iceberg(spark, solar_panel_readings_df, panel_id)
 
     spark.stop()
-    
-
-if __name__ == "__main__":
-    date = sys.argv[1]
-    logging.basicConfig(level = "INFO")
-    main(date)
