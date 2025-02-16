@@ -1,27 +1,14 @@
 from pyspark.sql import SparkSession
-from pyspark.sql import functions as F
 import logging
 import sys
 
 
-def main(date):
-    spark = (
-        SparkSession
-        .builder
-        .appName("load wh fact home power readings")
-        .getOrCreate()
-    )
+def load_2_iceberg(spark, date):
 
     spark.sql(f"""
         WITH staging_table AS (
             SELECT
-                CAST(CONCAT(
-                    YEAR(timestamp), '-', 
-                    LPAD(MONTH(timestamp), 2, '0'), '-', 
-                    LPAD(DAY(timestamp), 2, '0'), ' ',
-                    LPAD(HOUR(timestamp), 2, '0'), ':',
-                    LPAD(FLOOR(MINUTE(timestamp) / 15) * 15, 2, '0'), ':00'
-                ) AS TIMESTAMP) AS home_power_reading_key,
+                TIMESTAMP(FLOOR(UNIX_MICROS(timestamp) / (15 * 60 * 1000000)) * (15 * 60)) AS home_power_reading_key,
                 DATE(timestamp) AS date,
                 15_minutes_interval,
                 SUM(min_consumption_wh) AS min_consumption_power_wh,
@@ -58,10 +45,19 @@ def main(date):
 
     logging.info(f"""wh_fact_home_power_readings_etl -> Load into fact_home_power_readings iceberg table successfully""")
 
-    spark.stop()
     
 
 if __name__ == "__main__":
-    date = sys.argv[1]
     logging.basicConfig(level = "INFO")
-    main(date)
+    date = sys.argv[1]
+
+    spark = (
+        SparkSession
+        .builder
+        .appName("load wh fact home power readings")
+        .getOrCreate()
+    )
+
+    load_2_iceberg(spark, date)
+
+    spark.stop()
