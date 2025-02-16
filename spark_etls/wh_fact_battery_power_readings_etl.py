@@ -14,7 +14,10 @@ staging_query = """
             is_charging,
             status,
             ROW_NUMBER() OVER (PARTITION BY TIMESTAMP(FLOOR(UNIX_MICROS(timestamp) / (15 * 60 * 1000000)) * (15 * 60)), battery_name  ORDER BY timestamp DESC) AS row_num
-        FROM SolarX_Raw_Transactions.battery_readings
+        FROM 
+            SolarX_Raw_Transactions.battery_readings
+        WHERE 
+            DATE(timestamp) = DATE('{date}')
     )
 
     SELECT * FROM battery_readings_15m
@@ -31,8 +34,8 @@ dim_battery_current_query = """
         dim_battery.current_flag = TRUE
 """
 
-def broadcast_join(spark):
-    staging_df = spark.sql(staging_query)
+def broadcast_join(spark, date):
+    staging_df = spark.sql(staging_query.replace("{date}", date))
     dimension_df = spark.sql(dim_battery_current_query)
 
     # Broadcast the smaller dimension table for the join
@@ -89,7 +92,7 @@ if __name__ == "__main__":
         .getOrCreate()
     )
 
-    joined_df = broadcast_join(spark)
+    joined_df = broadcast_join(spark, date)
     load_2_iceberg(joined_df)
 
     spark.stop()
