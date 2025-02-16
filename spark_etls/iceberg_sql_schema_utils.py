@@ -40,6 +40,24 @@ USING iceberg
 PARTITIONED BY (DAY(timestamp), panel_id, 15_minutes_interval);
 """
 
+
+create_raw_battery_power_readings_schema = """
+CREATE TABLE SolarX_Raw_Transactions.battery_readings(
+    timestamp               TIMESTAMP NOT NULL,
+    15_minutes_interval     INT NOT NULL,
+    battery_name            VARCHAR(15) NOT NULL,
+    capacity_kwh            FLOAT NOT NULL,
+    max_charge_speed_w      FLOAT NOT NULL,
+    current_energy_wh       FLOAT NOT NULL,
+    is_charging             FLOAT NOT NULL,
+    status                  VARCHAR(15) NOT NULL,
+    max_output_w            FLOAT NOT NULL
+)
+USING iceberg
+PARTITIONED BY (DAY(timestamp), battery_name, 15_minutes_interval);
+"""
+
+
 # -------------- SolarX_WH tables -------------
 
 create_wh_namespace = """
@@ -121,6 +139,42 @@ CREATE TABLE SolarX_WH.fact_solar_panel_power_readings(
 USING iceberg
 PARTITIONED BY (MONTH(date_key), solar_panel_id)
 """
+
+
+create_wh_dim_battery_schema = """
+CREATE TABLE SolarX_WH.dim_battery(
+    battery_key                             INT         NOT NULL,
+    battery_id                              SMALLINT    NOT NULL,
+    name                                    VARCHAR(15) NOT NULL,    
+    capacity_kwh                            FLOAT       NOT NULL,
+    max_charge_speed_w                      FLOAT       NOT NULL,
+    max_output_w                            FLOAT       NOT NULL,
+
+    -- scd type2
+    start_date                              TIMESTAMP   NOT NULL,
+    end_date                                TIMESTAMP,
+
+    current_flag                            BOOLEAN
+)
+USING iceberg;
+"""
+
+
+create_wh_fact_battery_power_readings_schema = """
+CREATE TABLE SolarX_WH.fact_battery_power_readings(
+    battery_key                     SMALLINT      NOT NULL,   -- REFERENCES dim_battery(battery_key)
+    date_key                        TIMESTAMP     NOT NULL,   -- REFERENCES dim_date(date_key)
+    
+    battery_id                      SMALLINT      NOT NULL,
+    current_energy_wh               FLOAT         NOT NULL,
+    is_charging                     SMALLINT      NOT NULL,
+    status                          VARCHAR(15)   NOT NULL 
+)
+
+USING iceberg
+PARTITIONED BY (MONTH(date_key), battery_id)
+"""
+
 
 
 create_wh_dim_date_schema = """
