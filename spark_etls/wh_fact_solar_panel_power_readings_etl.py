@@ -8,15 +8,13 @@ staging_query = """
     SELECT
         panel_id,
         TIMESTAMP(FLOOR(UNIX_MICROS(timestamp) / (15 * 60 * 1000000)) * (15 * 60)) AS truncated_timestamp,
-        DATE(timestamp) AS date,
-        15_minutes_interval,
         SUM(generation_power_wh) AS generation_power_wh
     FROM 
         SolarX_Raw_Transactions.solar_panel_readings
     WHERE 
-        DAY(timestamp) = 1
+        DATE(timestamp) = DATE('{date}')
     GROUP BY 
-        panel_id, 15_minutes_interval, truncated_timestamp, DATE(timestamp)
+        panel_id, truncated_timestamp
 """
 
 dim_solar_panel_current_query = """
@@ -29,8 +27,8 @@ dim_solar_panel_current_query = """
         dim_solar_panel.current_flag = TRUE
 """
 
-def broadcast_join(spark):
-    staging_df = spark.sql(staging_query)
+def broadcast_join(spark, date):
+    staging_df = spark.sql(staging_query.replace("{date}", date))
     dimension_df = spark.sql(dim_solar_panel_current_query)
 
     # Broadcast the smaller dimension table for the join
@@ -84,7 +82,7 @@ if __name__ == "__main__":
         .getOrCreate()
     )
 
-    joined_df = broadcast_join(spark)
+    joined_df = broadcast_join(spark, date)
     load_2_iceberg(joined_df)
 
     spark.stop()
