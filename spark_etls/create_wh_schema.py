@@ -14,13 +14,22 @@ def main():
     # -------------- SolarX_WH -------------
     spark.sql(create_wh_namespace)
     spark.sql(create_wh_dim_home_schema)
+
     spark.sql(create_wh_dim_home_appliances_schema)
     spark.sql(create_wh_fact_home_power_readings_schema)
+
     spark.sql(create_wh_dim_solar_panel_schema)
     spark.sql(create_wh_fact_solar_panel_power_readings_schema)
+
+    spark.sql(create_wh_dim_solar_panel_schema)
+    spark.sql(create_wh_fact_solar_panel_power_readings_schema)
+
+    spark.sql(create_wh_dim_battery_schema)
+    spark.sql(create_wh_fact_battery_power_readings_schema)
+
     spark.sql(create_wh_dim_date_schema)
 
-    logging.info(f"""create-wh-schema-exists -> SolarX_WH tables are created successfully""")
+    logging.info(f"""create-wh-schema -> SolarX_WH tables are created successfully""")
 
 
 
