@@ -9,14 +9,14 @@ import sys
 def read_solarx_kafka_logged_data(spark, date):
     # Read solarx kafka log raw data
     _schema = StructType([
-        StructField("timestamp", TimestampType(), True),
+        StructField("time_stamp", TimestampType(), True),
         StructField("current_consumption_w", FloatType(), True),
         StructField("consumption_accumulated_w", FloatType(), True),
     ])
 
     solar_panel_readings_df = spark.read.format("json").schema(_schema)\
                     .load(f"/home/iceberg/warehouse/solarx_kafka_log_data/kafka_log_solar_energy_data_{date}.log")\
-                    .withColumn("15_min_interval", F.floor((F.hour(F.col("timestamp"))*60 + F.minute(F.col("timestamp")) - 60) / 15))                                                                                                 
+                    .withColumn("15_min_interval", F.floor((F.hour(F.col("time_stamp"))*60 + F.minute(F.col("time_stamp")) - 60) / 15))                                                                                                 
 
 
     return solar_panel_readings_df
@@ -69,7 +69,7 @@ def calc_solar_readings(spark, panel_id, weather_df):
 
 
 
-def load_2_iceberg(spark, solar_panel_readings_df, panel_id):
+def load_internal_2_iceberg(spark, solar_panel_readings_df, panel_id):
     solar_panel_readings_df.createOrReplaceTempView("temp_view")
     spark.sql(f"""
         INSERT INTO SolarX_Raw_Transactions.solar_panel_readings (timestamp, 15_minutes_interval, panel_id, generation_power_wh)
@@ -81,10 +81,25 @@ def load_2_iceberg(spark, solar_panel_readings_df, panel_id):
         FROM temp_view
     """)
 
-    logging.info(f"""raw-solar-panel-power-readings-etl -> panel: {panel_id} -> Load into solar_panel_readings iceberg table successfully""")
+    logging.info(f"""raw-solar-panel-power-readings-etl -> panel: {panel_id} -> load_internal_2_iceberg into solar_panel_readings iceberg table successfully""")
 
 
-    
+
+def load_kafka_2_iceberg(spark, solar_panel_readings_df, panel_id):
+    solar_panel_readings_df.createOrReplaceTempView("temp_view")
+    spark.sql(f"""
+        INSERT INTO SolarX_Raw_Transactions.solar_panel_readings (timestamp, 15_minutes_interval, panel_id, generation_power_wh)
+        SELECT time_stamp                 as timestamp,
+               15_min_interval            as 15_minutes_interval,
+               {panel_id}                 as panel_id,
+               current_consumption_w      as generation_power_wh
+            
+        FROM temp_view
+    """)
+
+    logging.info(f"""raw-solar-panel-power-readings-etl -> panel: {panel_id} -> load_kafka_2_iceberg into solar_panel_readings iceberg table successfully""")
+
+
 
 if __name__ == "__main__":
     logging.basicConfig(level = "INFO")
@@ -103,22 +118,22 @@ if __name__ == "__main__":
         solar_panel_readings_df = read_solarx_kafka_logged_data(spark, date)
 
         panel_id = 4
-        load_2_iceberg(spark, solar_panel_readings_df, panel_id)
+        load_kafka_2_iceberg(spark, solar_panel_readings_df, panel_id)
 
     elif source_data_type == "internal":
         weather_df = read_internal_data(spark, date)
 
         panel_id = 1
         solar_panel_readings_df = calc_solar_readings(spark, panel_id, weather_df)
-        load_2_iceberg(spark, solar_panel_readings_df, panel_id)
+        load_internal_2_iceberg(spark, solar_panel_readings_df, panel_id)
 
         panel_id = 2
         solar_panel_readings_df = calc_solar_readings(spark, panel_id, weather_df)
-        load_2_iceberg(spark, solar_panel_readings_df, panel_id)
+        load_internal_2_iceberg(spark, solar_panel_readings_df, panel_id)
 
         panel_id = 3
         solar_panel_readings_df = calc_solar_readings(spark, panel_id, weather_df)
-        load_2_iceberg(spark, solar_panel_readings_df, panel_id)
+        load_internal_2_iceberg(spark, solar_panel_readings_df, panel_id)
 
     else:
         logging.info(f"""raw-solar-panel-power-readings-etl -> Please enter either solarx-kafka or internal as data_type""")
