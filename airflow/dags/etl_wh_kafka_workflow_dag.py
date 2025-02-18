@@ -120,10 +120,25 @@ with DAG('etl_kafka_workflow', default_args=default_args, catchup=False) as dag:
 
 
 
+    # ----- Battery etl ------
+    wh_dim_battery_power_etl = SSHOperator(
+        task_id='wh_dim_battery_power_etl',
+        command=f"""/bin/bash /home/iceberg/etl_scripts/airflow_bash_wrapper.sh wh_dim_battery_power_etl.py""",
+        ssh_conn_id='spark_master_ssh',
+        dag=dag,
+    )
 
+
+    wh_fact_battery_power_readings_etl = SSHOperator(
+        task_id='wh_fact_battery_power_readings_etl',
+        command=f"""/bin/bash /home/iceberg/etl_scripts/airflow_bash_wrapper.sh wh_fact_battery_power_readings_etl.py {date}""",
+        ssh_conn_id='spark_master_ssh',
+        dag=dag,
+    )
 
 
     check_schema_exists >> check_wh_schema_exists_output
     check_wh_schema_exists_output >> [skip_create_wh_schema, create_wh_schema] >> merge_task
     merge_task >> wh_dim_home_appliances_power_etl >> wh_dim_home_power_etl >> wh_fact_home_power_readings_etl
     wh_dim_solar_panel_power_etl >> wh_fact_solar_panel_power_readings_etl
+    wh_fact_solar_panel_power_readings_etl >> wh_dim_battery_power_etl >> wh_fact_battery_power_readings_etl
