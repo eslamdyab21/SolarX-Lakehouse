@@ -207,20 +207,9 @@ docker compose up
 
 There is one other step we need to do, connect the workers with the master, we do that using the `spark_workers.sh` bash script.
 ```bash
-docker exec -it spark-worker-1 /bin/bash -c "chmod +x /opt/spark/spark_workers.sh && /opt/spark/spark_workers.sh"
+docker exec -it spark-worker-service-name /bin/bash -c "chmod +x /opt/spark/spark_workers.sh && /opt/spark/spark_workers.sh"
 ```
 
-```bash
-docker exec -it spark-worker-2 /bin/bash -c "chmod +x /opt/spark/spark_workers.sh && /opt/spark/spark_workers.sh"
-```
-
-```bash
-docker exec -it spark-worker-3 /bin/bash -c "chmod +x /opt/spark/spark_workers.sh && /opt/spark/spark_workers.sh"
-```
-
-```bash
-docker exec -it spark-worker-4 /bin/bash -c "chmod +x /opt/spark/spark_workers.sh && /opt/spark/spark_workers.sh"
-```
 
 Navigate to the url `127.0.0.1:8080` in which the spark master is running, make a note of the spark master internal url `spark://9611ff031a11:7077`, we will need it in the session creation step below.
 ![](images/workers.png)
@@ -907,13 +896,7 @@ The ETL process consists of two main parts, First extract the desired data from 
 %%sql
 
 SELECT
-     CAST(CONCAT(
-        YEAR(timestamp), '-', 
-        LPAD(MONTH(timestamp), 2, '0'), '-', 
-        LPAD(DAY(timestamp), 2, '0'), ' ',
-        LPAD(HOUR(timestamp), 2, '0'), ':',
-        LPAD(FLOOR(MINUTE(timestamp) / 15) * 15, 2, '0'), ':00'
-    ) AS TIMESTAMP) AS home_power_reading_key,
+     TIMESTAMP(FLOOR(UNIX_MICROS(timestamp) / (15 * 60 * 1000000)) * (15 * 60)) AS home_power_reading_key,
     DATE(timestamp) AS date,
     15_minutes_interval,
     SUM(min_consumption_wh) AS min_consumption_power_wh,
@@ -1281,33 +1264,98 @@ docker exec -it spark-master bash
 
 Inside the `/opt/spark` directory run the following with desired parameters 
 
+#### For Raw Data
 - Create raw schema
 ```bash
 ./bin/spark-submit --master spark://spark-master:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/create_raw_schema.py
 ```
 
-- Create warehouse schema
+
+- Rum raw home power readings etl, it takes an extra 2 parameters:
+	1. `source_data_type` which is 
+		- `solarx-kafka`: implies taking the data source from batched relevant kafka topic data from `SolarX` project.
+		- `internal`: implies taking the data source from the derived weather dataset.
+	2. `date` the date of batched file to perform the etl on
+		- for `solarx-kafka` the data is batched kafka topics logged files are located in `lakehouse/spark/solarx_kafka_log_data` directory.
+		- for `internal` derived data csv files are located in `lakehouse/spark/home_power_usage_history/` directory.
+
+
 ```bash
-./bin/spark-submit --master spark://5846f3795ae1:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/create_wh_schema.py
+./bin/spark-submit --master spark://spark-master:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/raw_home_power_readings_etl.py solarx-kafka 2025-02-14
 ```
 
-- Rum raw home power readings etl, it takes an extra parameter, the date in this case `2013-01-01`.  Note that the corresponding csv file `2013-01-01.csv` should be in the `lakehouse/spark/home_power_usage_history/2013-01-01.csv` directory
 ```bash
-./bin/spark-submit --master spark://464f44e6c408:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/raw_home_power_readings_etl.py 2013-01-01
+./bin/spark-submit --master spark://spark-master:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/raw_home_power_readings_etl.py internal 2013-01-01
 ```
 
 
 - Run raw solar panel etl
 ```bash
-./bin/spark-submit --master spark://464f44e6c408:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/raw_solar_panel_power_etl.py
+./bin/spark-submit --master spark://spark-master:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/raw_solar_panel_power_etl.py
 ```
 
 
-- Rum raw solar panel power readings etl, it takes an extra parameter, the date in this case `2013-01-01`.  Note that the corresponding csv file `2013-01-01.csv` should be in the `lakehouse/spark/weather_history_splitted_resampled/2013-01-01.csv` directory
+- Run raw solar panel power readings etl, it takes two extra parameters, same as before with home power readings
 ```bash
-./bin/spark-submit --master spark://464f44e6c408:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/raw_solar_panel_power_readings_etl.py 2013-01-01
+./bin/spark-submit --master spark://spark-master:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/raw_solar_panel_power_readings_etl.py solarx-kafka 2025-02-14
 ```
 
+```bash
+./bin/spark-submit --master spark://spark-master:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/raw_solar_panel_power_readings_etl.py internal 2013-01-01
+```
+
+
+- Run raw battery power readings etl, it takes two extra parameters, same as before with home power readings
+```bash
+./bin/spark-submit --master spark://spark-master:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/raw_battery_power_readings_etl.py solarx-kafka 2025-02-14
+```
+
+
+<br/>
+
+#### For Warehouse Data
+- Create warehouse schema
+```bash
+./bin/spark-submit --master spark://spark-master:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/create_wh_schema.py
+```
+
+
+- Wh dim home appliances power etl
+```bash
+./bin/spark-submit --master spark://spark-master:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/wh_dim_home_appliances_power_etl.py
+```
+
+- Wh dim home power etl
+```bash
+./bin/spark-submit --master spark://spark-master:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/wh_dim_home_power_etl.py
+```
+
+- Wh fact home power readings etl, it takes an extra parameter, `date` of data we which to insert, this is only to filter data in spark so that we don't load all the data, the pipeline is idempotent, if we run it twice, we won't load twice the data, only the new data will be loaded.
+```bash
+./bin/spark-submit --master spark://spark-master:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/wh_fact_home_power_readings_etl.py 2025-02-14
+```
+
+
+- Wh dim solar panel power etl
+```bash
+./bin/spark-submit --master spark://spark-master:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/wh_dim_solar_panel_power_etl.py
+```
+
+- Wh fact solar panel power readings etl, it takes an extra parameter, same as before.
+```bash
+./bin/spark-submit --master spark://spark-master:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/wh_fact_solar_panel_power_readings_etl.py 2025-02-14
+```
+
+
+- Wh dim battery power etl
+```bash
+./bin/spark-submit --master spark://spark-master:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/wh_dim_battery_power_etl.py
+```
+
+- Wh fact battery power readings etl, it takes an extra parameter, same as before.
+```bash
+./bin/spark-submit --master spark://spark-master:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/wh_fact_battery_power_readings_etl.py 2025-02-14
+```
 
 <br/>
 <br/>
