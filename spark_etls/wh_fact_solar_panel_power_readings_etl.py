@@ -34,7 +34,7 @@ def broadcast_join(spark, date):
     # Broadcast the smaller dimension table for the join
     joined_df = staging_df.join(
         broadcast(dimension_df),
-        (staging_df.battery_id == dimension_df.dim_battery_id),
+        (staging_df.panel_id == dimension_df.solar_panel_id),
         "left"
     )
 
