@@ -21,9 +21,6 @@ def main():
     spark.sql(create_wh_dim_solar_panel_schema)
     spark.sql(create_wh_fact_solar_panel_power_readings_schema)
 
-    spark.sql(create_wh_dim_solar_panel_schema)
-    spark.sql(create_wh_fact_solar_panel_power_readings_schema)
-
     spark.sql(create_wh_dim_battery_schema)
     spark.sql(create_wh_fact_battery_power_readings_schema)
 
