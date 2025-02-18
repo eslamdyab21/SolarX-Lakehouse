@@ -14,7 +14,8 @@ def main():
     source_df = spark.createDataFrame([
     (1, 'roof panel', 3, 1000, 25),
     (2, 'pole panel', 5, 1300, 25),
-    (3, 'flush panel', 10, 1500, 25)
+    (3, 'flush panel', 10, 1500, 25),
+    (4, 'kafka panel', 10, 1000, 25)
     ], ["id", "name", "capacity_kwh", "intensity_power_rating", "temperature_power_rating"])
     
     source_df.createOrReplaceTempView("source_view")
