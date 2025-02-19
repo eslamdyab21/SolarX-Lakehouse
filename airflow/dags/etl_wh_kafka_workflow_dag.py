@@ -21,7 +21,7 @@ def process_output_from_check_wh_schema_exists(ti):
 
 
     if "SolarX_WH exists" in decoded_output:
-        return "SolarX_WH exists"
+        return "skip_create_wh_schema"
     else:
         return "create_wh_schema"
     
