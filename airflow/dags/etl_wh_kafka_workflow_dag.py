@@ -3,6 +3,7 @@ from airflow.contrib.operators.ssh_operator import SSHOperator
 from airflow.operators.python_operator import BranchPythonOperator
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.models import Variable
+from airflow.datasets import Dataset
 from datetime import datetime
 import base64
 
@@ -32,7 +33,7 @@ default_args = {
 }
 
 
-with DAG('etl_kafka_workflow', default_args=default_args, catchup=False) as dag:
+with DAG('etl_wh_kafka_workflow', schedule=[Dataset("first_etl_raw_kafka_dag_completed")], default_args=default_args, catchup=False) as dag:
     source_data_type = Variable.get("source_data_type")
     date = Variable.get("date")
 
@@ -140,5 +141,5 @@ with DAG('etl_kafka_workflow', default_args=default_args, catchup=False) as dag:
     check_schema_exists >> check_wh_schema_exists_output
     check_wh_schema_exists_output >> [skip_create_wh_schema, create_wh_schema] >> merge_task
     merge_task >> wh_dim_home_appliances_power_etl >> wh_dim_home_power_etl >> wh_fact_home_power_readings_etl
-    wh_dim_solar_panel_power_etl >> wh_fact_solar_panel_power_readings_etl
+    wh_fact_home_power_readings_etl >> wh_dim_solar_panel_power_etl >> wh_fact_solar_panel_power_readings_etl
     wh_fact_solar_panel_power_readings_etl >> wh_dim_battery_power_etl >> wh_fact_battery_power_readings_etl
