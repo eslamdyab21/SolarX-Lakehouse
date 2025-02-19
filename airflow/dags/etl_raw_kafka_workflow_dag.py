@@ -3,6 +3,7 @@ from airflow.contrib.operators.ssh_operator import SSHOperator
 from airflow.operators.python_operator import BranchPythonOperator
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.models import Variable
+from airflow.datasets import Dataset
 from datetime import datetime
 import base64
 
@@ -25,6 +26,8 @@ def process_output_from_check_raw_schema_exists(ti):
 
     
 
+dataset_1 = Dataset("first_etl_raw_kafka_dag_completed")
+
 default_args = {
     'owner': 'airflow',
     'depends_on_past': False,
@@ -32,7 +35,7 @@ default_args = {
 }
 
 
-with DAG('etl_kafka_workflow', default_args=default_args, catchup=False) as dag:
+with DAG('etl_raw_kafka_workflow', default_args=default_args, catchup=False) as dag:
     source_data_type = Variable.get("source_data_type")
     date = Variable.get("date")
 
@@ -101,6 +104,7 @@ with DAG('etl_kafka_workflow', default_args=default_args, catchup=False) as dag:
         command=f"""/bin/bash /home/iceberg/etl_scripts/airflow_bash_wrapper.sh raw_battery_power_readings_etl.py {date} {source_data_type}""",
         ssh_conn_id='spark_master_ssh',
         dag=dag,
+        outlets=[Dataset("first_etl_raw_kafka_dag_completed")]
     )
 
 
