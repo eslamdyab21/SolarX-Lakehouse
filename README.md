@@ -1,4 +1,4 @@
-![](images/diagram-export-2-19-2025-5_56_50-AM.png)
+![](images/diagram-export-2-19-2025-7_39_14-AM.png)
 # Introduction
 **SolarX Lakehouse** is a **big data platform** designed to handle and analyze energy consumption, solar energy production, and battery energy storage. The project follows a **modern lakehouse architecture**, integrating **Apache Spark, Iceberg, Kafka, Docker, and Kubernetes to enable scalable, real-time monitoring and batch processing.
 
