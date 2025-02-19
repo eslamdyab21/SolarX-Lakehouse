@@ -1291,7 +1291,8 @@ Inside the `/opt/spark` directory run the following with desired parameters
 ```
 
 
-- Rum raw home power readings etl, it takes an extra 2 parameters:
+##### For home
+- Run raw home power readings etl, it takes an extra 2 parameters:
 	1. `source_data_type` which is 
 		- `solarx-kafka`: implies taking the data source from batched relevant kafka topic data from `SolarX` project.
 		- `internal`: implies taking the data source from the derived weather dataset.
@@ -1309,6 +1310,7 @@ Inside the `/opt/spark` directory run the following with desired parameters
 ```
 
 
+##### For solar panel 
 - Run raw solar panel etl
 ```bash
 ./bin/spark-submit --master spark://spark-master:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/raw_solar_panel_power_etl.py
@@ -1325,6 +1327,7 @@ Inside the `/opt/spark` directory run the following with desired parameters
 ```
 
 
+##### For battery 
 - Run raw battery power readings etl, it takes two extra parameters, same as before with home power readings
 ```bash
 ./bin/spark-submit --master spark://spark-master:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/raw_battery_power_readings_etl.py solarx-kafka 2025-02-14
@@ -1339,7 +1342,7 @@ Inside the `/opt/spark` directory run the following with desired parameters
 ./bin/spark-submit --master spark://spark-master:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/create_wh_schema.py
 ```
 
-
+##### For home
 - Wh dim home appliances power etl
 ```bash
 ./bin/spark-submit --master spark://spark-master:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/wh_dim_home_appliances_power_etl.py
@@ -1356,6 +1359,7 @@ Inside the `/opt/spark` directory run the following with desired parameters
 ```
 
 
+##### For solar panel
 - Wh dim solar panel power etl
 ```bash
 ./bin/spark-submit --master spark://spark-master:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/wh_dim_solar_panel_power_etl.py
@@ -1367,6 +1371,7 @@ Inside the `/opt/spark` directory run the following with desired parameters
 ```
 
 
+##### For battery 
 - Wh dim battery power etl
 ```bash
 ./bin/spark-submit --master spark://spark-master:7077 --num-executors 6 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/wh_dim_battery_power_etl.py
@@ -1380,10 +1385,10 @@ Inside the `/opt/spark` directory run the following with desired parameters
 <br/>
 <br/>
 
-### Submitting ETL Python Scripts to Spark Cluster With Airflow
+#### Submitting ETL Python Scripts to Spark Cluster With Airflow
 Inside the `airflow` directory there is a `docker-compose` file and `Dockerfile` to setup the airflow environment with docker and we are using the same spark network.
 
-We use a lightweight airflow setup here, the docker related files are manly inspired from this repo `https://github.com/ntd284/personal_install_airflow_docker/tree/main/airflow_lite`
+We use a lightweight airflow setup here, the docker related files are manly inspired from this repo [airflow_lite](https://github.com/ntd284/personal_install_airflow_docker/tree/main/airflow_lite)
 
 
 After starting the environment
@@ -1396,8 +1401,37 @@ Airflow will run the spark scripts using `ssh`, so we need to enable it in the s
 ```bash
 docker exec -it spark-master /bin/bash -c "echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config && echo 'root:password' | chpasswd && service ssh restart"
 ```
+- Two main dags scripts in the `airflow/dags` directory: 
+	1. `etl_raw_kafka_workflow_dag.py` for raw data etls
+	2. `etl_wh_kafka_workflow_dag.py` for warehouse data etls
+- Two `Variable` and one `Connection` needs to be set in Airflow:
+	1. `source_data_type` variable
+	2. `date` variable variable
+	3. `spark_master_ssh` connection
+- A `Dataset` is used in the two airflow dags python scripts to trigger the `warehouse` dag after the `raw` dag finishes execution.
+![](images/airflow_dataset.png)
 
-![](images/airflow_dag.png)
+The two main dags workflow:
+1. `etl_raw_kafka_workflow`
+```python
+check_schema_exists >> check_raw_schema_exists_output
+check_raw_schema_exists_output >> [skip_create_raw_schema, create_raw_schema] >> merge_task
+merge_task >> raw_home_power_readings_etl >> raw_solar_panel_power_etl >> raw_solar_panel_power_readings_etl
+raw_solar_panel_power_readings_etl >> raw_battery_power_readings_etl
+```
+![](images/airflow_kafka_raw.png)
+
+2. `etl_wh_kafka_workflow`
+```python
+check_schema_exists >> check_wh_schema_exists_output
+check_wh_schema_exists_output >> [skip_create_wh_schema, create_wh_schema] >> merge_task
+merge_task >> wh_dim_home_appliances_power_etl >> wh_dim_home_power_etl >> wh_fact_home_power_readings_etl
+wh_fact_home_power_readings_etl >> wh_dim_solar_panel_power_etl >> wh_fact_solar_panel_power_readings_etl
+wh_fact_solar_panel_power_readings_etl >> wh_dim_battery_power_etl >> wh_fact_battery_power_readings_etl
+```
+![](images/airflow_kafka_wh.png)
+
+
 
 
 <br/>
@@ -1420,47 +1454,9 @@ We need to add a couple more configuration settings here duo to the fact that th
 ```
 so that workers can resolve the master service name correctly instead of accessing the container name, which won't work here in k8s setup.
 
+We can use the above `Docker` commands here with adding those couple more configuration, I will give an example with the `raw schema`
 - Create raw schema
 ```bash
 ./bin/spark-submit --master spark://spark-master-service:7077 --conf spark.driver.host=spark-master-service --conf spark.driver.bindAddress=0.0.0.0 --conf spark.driver.port=5000 --conf spark.broadcast.port=5001 --conf spark.replClassServer.port=5002 --conf spark.blockManager.port=5003 --num-executors 4 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/create_raw_schema.py
 ```
 
-
-- Create warehouse schema
-```bash
-./bin/spark-submit --master spark://spark-master-service:7077 --conf spark.driver.host=spark-master-service --conf spark.driver.bindAddress=0.0.0.0 --conf spark.driver.port=5000 --conf spark.broadcast.port=5001 --conf spark.replClassServer.port=5002 --conf spark.blockManager.port=5003 --num-executors 4 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/create_wh_schema.py
-```
-
-
-- Rum raw home power readings etl, it takes an extra parameter, the date in this case `2013-01-01`.  Note that the corresponding csv file `2013-01-01.csv` should be in the `lakehouse/spark/home_power_usage_history/2013-01-01.csv` directory
-```bash
-./bin/spark-submit --master spark://spark-master-service:7077 --conf spark.driver.host=spark-master-service --conf spark.driver.bindAddress=0.0.0.0 --conf spark.driver.port=5000 --conf spark.broadcast.port=5001 --conf spark.replClassServer.port=5002 --conf spark.blockManager.port=5003 --num-executors 4 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/raw_home_power_readings_etl.py 2013-01-01
-```
-
-
-- Run raw solar panel etl
-```bash
-./bin/spark-submit --master spark://spark-master-service:7077 --conf spark.driver.host=spark-master-service --conf spark.driver.bindAddress=0.0.0.0 --conf spark.driver.port=5000 --conf spark.broadcast.port=5001 --conf spark.replClassServer.port=5002 --conf spark.blockManager.port=5003 --num-executors 4 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/raw_solar_panel_power_etl.py
-```
-
-
-- Rum raw solar panel power readings etl, it takes an extra parameter, the date in this case `2013-01-01`.  Note that the corresponding csv file `2013-01-01.csv` should be in the `lakehouse/spark/weather_history_splitted_resampled/2013-01-01.csv` directory
-```bash
-./bin/spark-submit --master spark://spark-master-service:7077 --conf spark.driver.host=spark-master-service --conf spark.driver.bindAddress=0.0.0.0 --conf spark.driver.port=5000 --conf spark.broadcast.port=5001 --conf spark.replClassServer.port=5002 --conf spark.blockManager.port=5003 --num-executors 4 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/raw_solar_panel_power_readings_etl.py 2013-01-01
-```
-
-- Wh home appliances power etl
-```bash
-./bin/spark-submit --master spark://spark-master-service:7077 --conf spark.driver.host=spark-master-service --conf spark.driver.bindAddress=0.0.0.0 --conf spark.driver.port=5000 --conf spark.broadcast.port=5001 --conf spark.replClassServer.port=5002 --conf spark.blockManager.port=5003 --num-executors 4 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/wh_dim_home_appliances_power_etl.py
-```
-
-
-- Wh home power etl
-```bash
-./bin/spark-submit --master spark://spark-master-service:7077 --conf spark.driver.host=spark-master-service --conf spark.driver.bindAddress=0.0.0.0 --conf spark.driver.port=5000 --conf spark.broadcast.port=5001 --conf spark.replClassServer.port=5002 --conf spark.blockManager.port=5003 --num-executors 4 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/wh_dim_home_power_etl.py
-```
-
-- Wh fact home power etl
-```bash
-./bin/spark-submit --master spark://spark-master-service:7077 --conf spark.driver.host=spark-master-service --conf spark.driver.bindAddress=0.0.0.0 --conf spark.driver.port=5000 --conf spark.broadcast.port=5001 --conf spark.replClassServer.port=5002 --conf spark.blockManager.port=5003 --num-executors 4 --executor-cores 1 --executor-memory 512M /home/iceberg/etl_scripts/wh_fact_home_power_readings_etl.py 2013-01-01
-```
