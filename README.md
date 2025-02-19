@@ -1,5 +1,5 @@
+![](images/diagram-export-2-19-2025-5_56_50-AM.png)
 # Introduction
-
 **SolarX Lakehouse** is a **big data platform** designed to handle and analyze energy consumption, solar energy production, and battery energy storage. The project follows a **modern lakehouse architecture**, integrating **Apache Spark, Iceberg, Kafka, Docker, and Kubernetes to enable scalable, real-time monitoring and batch processing.
 
 ### **Data Source & Ingestion**
@@ -25,15 +25,19 @@ The data powering **SolarX Lakehouse** comes from the **Solar-X Kafka logged dat
         - **Processed wh structured data** → Cleaned and Optimized for analytics & BI tools.
 5. **Containerization & Orchestration (Docker + Kubernetes):**
 	- **Docker and Kubernetes** containerizes all components (Spark, Kafka, Iceberg) for easy deployment and orchestrating scalable workloads.
+6. **Workflow Orchestration (Apache Airflow)**
+	- **Data Ingestion:** Airflow manages the orchestration of data ingestion from Apache Kafka in batches, coordinating the flow of streaming data into the lakehouse storage.
+	- **ETL Processes:** It schedules and manages ETL tasks, leveraging Apache Spark for data transformation and ensuring that processed data is accurately stored in Apache Iceberg tables.
+
 
 ### **Tech Stack**
-- **Processing:** Apache Spark, PySpark
-- **Storage:** Minio object storage and Apache Iceberg
-- **Streaming:** Apache Kafka
-- **Orchestration:** Apache Airflow
-- **Containerization & Orchestratio:** Docker and Kubernetes
-- **Query Engine:** SQL-based querying on Iceberg tables
-- **Data Warehouse Modeling:** Dimensional schema for structured analytics
+- Processing: **Apache Spark**
+- Storage: **Minio** object storage and **Apache Iceberg**
+- Streaming: **Apache Kafka**
+- Workflow Orchestration: **Apache Airflow**
+- Containerization & Orchestration: Docker and Kubernetes
+- Query Engine: **SQL**-based querying on Iceberg tables
+- Data Warehouse Modeling: **Dimensional & Facts** schema for structured analytics
 
 This system (SolarX-Monitoring-App and SolarX-Lakehouse) provides a **fully scalable and reliable solution** for managing solar energy data, supporting real-time monitoring, analytics, and predictive insights for optimized energy usage.
 
